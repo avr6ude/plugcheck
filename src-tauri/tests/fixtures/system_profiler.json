@@ -1,0 +1,49 @@
+{
+  "SPThunderboltDataType" : [
+    {
+      "_name" : "thunderboltusb4_bus_2",
+      "device_name_key" : "MacBook Pro",
+      "domain_uuid_key" : "B93E0226-8D8C-4BA5-B695-D44E3436910C",
+      "receptacle_1_tag" : {
+        "current_speed_key" : "Up to 40 Gb/s",
+        "link_status_key" : "0x100",
+        "receptacle_id_key" : "3",
+        "receptacle_status_key" : "receptacle_no_devices_connected"
+      },
+      "route_string_key" : "0",
+      "switch_uid_key" : "0x05AC2870218442A2",
+      "vendor_name_key" : "Apple Inc."
+    },
+    {
+      "_name" : "thunderboltusb4_bus_1",
+      "device_name_key" : "MacBook Pro",
+      "domain_uuid_key" : "56193EA9-2D69-4DC0-B7E1-21D5920ECD31",
+      "receptacle_1_tag" : {
+        "current_speed_key" : "Up to 40 Gb/s",
+        "link_status_key" : "0x100",
+        "receptacle_id_key" : "2",
+        "receptacle_status_key" : "receptacle_no_devices_connected"
+      },
+      "route_string_key" : "0",
+      "switch_uid_key" : "0x05AC2870218442A1",
+      "vendor_name_key" : "Apple Inc."
+    },
+    {
+      "_name" : "thunderboltusb4_bus_0",
+      "device_name_key" : "MacBook Pro",
+      "domain_uuid_key" : "E87FF3FD-6137-445A-9C23-9009E7E37041",
+      "receptacle_1_tag" : {
+        "current_speed_key" : "Up to 40 Gb/s",
+        "link_status_key" : "0x100",
+        "receptacle_id_key" : "1",
+        "receptacle_status_key" : "receptacle_no_devices_connected"
+      },
+      "route_string_key" : "0",
+      "switch_uid_key" : "0x05AC2870218442A0",
+      "vendor_name_key" : "Apple Inc."
+    }
+  ],
+  "SPUSBDataType" : [
+
+  ]
+}
