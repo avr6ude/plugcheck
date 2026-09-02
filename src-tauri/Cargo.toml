@@ -1,0 +1,21 @@
+[package]
+name = "plugcheck"
+version = "0.1.0"
+description = "See what each USB-C / Thunderbolt cable and device on your Mac can actually do."
+authors = ["avrdude"]
+edition = "2021"
+
+[lib]
+name = "plugcheck_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "=2.11.5", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+plist = "1"
+log = "0.4"
+env_logger = "0.11"
