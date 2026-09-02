@@ -31,20 +31,26 @@
   {#each nodes as n, i}
     {@const key = `${depth}:${i}:${n.name}`}
     {@const hasKids = n.children.length > 0}
+    {@const collapsible = n.is_hub && hasKids}
     <li>
       <div class="row">
-        {#if n.is_hub && hasKids}
-          <button class="twist" onclick={() => (open[key] = !open[key])} aria-label="toggle">
-            {open[key] ? "▾" : "▸"}
-          </button>
-        {:else}
-          <span class="twist spacer"></span>
-        {/if}
+        <button
+          class="caret"
+          class:open={open[key]}
+          class:hidden={!collapsible}
+          onclick={() => (open[key] = !open[key])}
+          aria-label={open[key] ? "collapse" : "expand"}
+        >
+          <svg viewBox="0 0 12 12" width="9" height="9" aria-hidden="true">
+            <path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
         <span class="name">{n.name}</span>
-        {#if n.is_hub && hasKids && !open[key]}
+        {#if collapsible && !open[key]}
           <span class="count">{subtreeCount(n)} device{subtreeCount(n) === 1 ? "" : "s"}</span>
         {/if}
-        {#if n.vendor}<span class="vendor">{n.vendor}</span>{/if}
+        {#if n.vendor}<span class="dim">{n.vendor}</span>{/if}
+        {#if n.usb_version}<span class="dim">{n.usb_version}</span>{/if}
         {#if speedLabel(n.speed)}<span class="speed">{speedLabel(n.speed)}</span>{/if}
       </div>
       {#if hasKids && (open[key] || !n.is_hub)}
@@ -61,9 +67,9 @@
     padding: 0;
   }
   .tree:not(.root) {
-    margin-left: 1.1rem;
+    margin-left: 1.15rem;
     border-left: 1px solid var(--line);
-    padding-left: 0.3rem;
+    padding-left: 0.35rem;
   }
   li {
     padding: 0.05rem 0;
@@ -73,26 +79,33 @@
     align-items: baseline;
     gap: 0.4rem;
     font-size: 0.84rem;
-    line-height: 1.7;
+    line-height: 1.75;
   }
-  .twist {
-    width: 1rem;
+  .caret {
+    width: 0.9rem;
     flex: none;
     background: none;
     border: 0;
     padding: 0;
     color: var(--muted);
     cursor: pointer;
-    font-size: 0.7rem;
+    align-self: center;
+    display: grid;
+    place-items: center;
+    transition: transform 0.12s ease;
   }
-  .twist.spacer {
+  .caret.open {
+    transform: rotate(90deg);
+  }
+  .caret.hidden {
+    visibility: hidden;
     cursor: default;
   }
   .name {
     font-weight: 500;
   }
   .count,
-  .vendor,
+  .dim,
   .speed {
     color: var(--muted);
     font-size: 0.76rem;

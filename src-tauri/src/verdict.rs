@@ -16,6 +16,7 @@ pub enum Blame {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CardKind {
+    Port,
     Data,
     Charging,
     Display,
@@ -101,6 +102,15 @@ fn cards(p: &Port) -> Vec<VerdictCard> {
     let (data_line, data_blame) = data(p);
     let dev = fastest_device(p);
     let dp_only = p.dp_alt && dev.rank() <= Transport::Usb2.rank();
+
+    if !p.supported.is_empty() {
+        out.push(VerdictCard {
+            kind: CardKind::Port,
+            status: CardStatus::Idle,
+            title: "Port".into(),
+            text: format!("Handles {}.", p.supported.join(", ")),
+        });
+    }
 
     if !dp_only {
         out.push(VerdictCard {
@@ -287,14 +297,21 @@ fn one(p: &Port) -> PortVerdict {
 
 fn charging_line(p: &Port) -> Option<String> {
     let c = p.charger.as_ref()?;
-    if p.emarker.current_amps == Some(3) {
-        return Some("Cable limits charging to ~60 W (3 A cable).".into());
+    let mut s = match (c.watts, c.negotiated_volts, c.negotiated_amps) {
+        (Some(w), Some(v), Some(a)) => format!("Charging at {w} W ({v:.0} V / {a:.1} A)."),
+        (Some(w), _, _) => format!("Charging at {w} W."),
+        (None, Some(v), Some(a)) => format!("Charging at ~{:.0} W ({v:.0} V / {a:.1} A).", v * a),
+        (None, None, Some(a)) => format!("Charging (~{a:.1} A, voltage unavailable)."),
+        _ => "Charging (wattage unavailable).".into(),
+    };
+    if p.emarker.current_amps == Some(3) && c.watts.map_or(true, |w| w > 60) {
+        s.push_str(" The cable's 3 A rating limits this to ~60 W.");
     }
-    match (c.negotiated_volts, c.negotiated_amps) {
-        (Some(v), Some(a)) => Some(format!("Charging at {:.0} W ({v:.0} V / {a:.1} A).", v * a)),
-        (None, Some(a)) => Some(format!("Charging (~{a:.1} A, voltage unavailable).")),
-        _ => Some("Charging (wattage unavailable).".into()),
+    if !c.profile_volts.is_empty() {
+        let v: Vec<String> = c.profile_volts.iter().map(|v| format!("{v} V")).collect();
+        s.push_str(&format!(" Adapter offers {}.", v.join(", ")));
     }
+    Some(s)
 }
 
 fn trust_flags(p: &Port) -> Vec<String> {
@@ -319,6 +336,7 @@ mod tests {
             name: name.into(),
             vendor: None,
             speed,
+            usb_version: None,
             is_hub: false,
             children: vec![],
         }
@@ -350,6 +368,7 @@ mod tests {
                 occupied,
                 orientation: Some(1),
                 active_transport: active,
+                supported: vec!["USB 3.2".into(), "USB 2.0".into()],
                 dp_alt,
                 emarker,
                 charger,
@@ -416,6 +435,9 @@ mod tests {
             vec![],
             EmarkerInfo::default(),
             Some(Charger {
+                watts: None,
+                is_charging: true,
+                profile_volts: vec![],
                 negotiated_volts: None,
                 negotiated_amps: Some(3.0),
                 cable_current_limit_amps: None,
@@ -472,13 +494,16 @@ mod tests {
             vec![],
             em(None, Transport::None, Some(3)),
             Some(Charger {
+                watts: None,
+                is_charging: true,
+                profile_volts: vec![],
                 negotiated_volts: Some(20.0),
                 negotiated_amps: Some(5.0),
                 cable_current_limit_amps: Some(3),
             }),
         );
         let line = verdicts(&s)[0].charging_line.clone().unwrap();
-        assert!(line.contains("3 A cable"), "got: {line}");
+        assert!(line.contains("3 A rating"), "got: {line}");
     }
 
     #[test]
@@ -489,6 +514,9 @@ mod tests {
             vec![],
             EmarkerInfo::default(),
             Some(Charger {
+                watts: None,
+                is_charging: true,
+                profile_volts: vec![],
                 negotiated_volts: Some(20.0),
                 negotiated_amps: Some(4.5),
                 cable_current_limit_amps: Some(5),
@@ -523,8 +551,8 @@ mod tests {
             None,
         );
         let kinds: Vec<CardKind> = verdicts(&s)[0].cards.iter().map(|c| c.kind).collect();
-        assert_eq!(kinds, vec![CardKind::Data, CardKind::Cable]);
-        assert_eq!(verdicts(&s)[0].cards[0].status, CardStatus::Ok);
+        assert_eq!(kinds, vec![CardKind::Port, CardKind::Data, CardKind::Cable]);
+        assert_eq!(verdicts(&s)[0].cards[1].status, CardStatus::Ok);
     }
 
     #[test]
@@ -556,6 +584,9 @@ mod tests {
             vec![],
             EmarkerInfo::default(),
             Some(Charger {
+                watts: None,
+                is_charging: true,
+                profile_volts: vec![],
                 negotiated_volts: Some(20.0),
                 negotiated_amps: Some(4.5),
                 cable_current_limit_amps: Some(5),

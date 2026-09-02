@@ -79,6 +79,8 @@ pub struct DeviceNode {
     pub name: String,
     pub vendor: Option<String>,
     pub speed: Transport,
+    /// USB spec the device reports, e.g. "USB 3.2" (from `bcdUSB`).
+    pub usb_version: Option<String>,
     pub is_hub: bool,
     pub children: Vec<DeviceNode>,
 }
@@ -87,6 +89,11 @@ pub struct DeviceNode {
 pub struct Charger {
     pub negotiated_volts: Option<f32>,
     pub negotiated_amps: Option<f32>,
+    /// Adapter rated wattage (from `AppleSmartBattery.AdapterDetails.Watts`).
+    pub watts: Option<u16>,
+    pub is_charging: bool,
+    /// Voltages the adapter advertises (its PDO menu), e.g. [5, 9, 15, 20].
+    pub profile_volts: Vec<u16>,
     /// Cable's current cap from its e-marker, for bottleneck blame.
     pub cable_current_limit_amps: Option<u8>,
 }
@@ -101,6 +108,9 @@ pub struct Port {
     pub orientation: Option<u8>,
     /// What is actually negotiated on the link right now.
     pub active_transport: Transport,
+    /// Friendly names of what the port itself can carry, e.g.
+    /// ["Thunderbolt / USB4", "DisplayPort", "USB 3.2", "USB 2.0"].
+    pub supported: Vec<String>,
     /// DisplayPort Alt Mode is carrying video on this port.
     pub dp_alt: bool,
     pub emarker: EmarkerInfo,
@@ -151,6 +161,7 @@ mod tests {
                 occupied: true,
                 orientation: Some(1),
                 active_transport: Transport::Usb2,
+                supported: vec!["USB 3.2".into()],
                 dp_alt: false,
                 emarker: EmarkerInfo {
                     vendor_id: Some(0x05ac),

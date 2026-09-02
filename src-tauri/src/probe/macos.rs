@@ -37,6 +37,7 @@ mod keys {
     pub const ACTIVE_CABLE: &str = "ActiveCable";
     pub const OPTICAL_CABLE: &str = "OpticalCable";
     pub const TRANSPORTS_ACTIVE: &str = "TransportsActive"; // e.g. ["CC","USB3","DisplayPort"]
+    pub const TRANSPORTS_SUPPORTED: &str = "TransportsSupported";
     pub const SUPERSPEED_ACTIVE: &str = "IOAccessoryUSBSuperSpeedActive";
     pub const CURRENT_LIMITS: &str = "IOAccessoryPowerCurrentLimits"; // [mA; 5]
     pub const VENDOR_ID: &str = "Vendor ID";
@@ -49,6 +50,7 @@ mod keys {
     pub const USB_DEVICE_SPEED: &str = "Device Speed"; // enum fallback
     pub const USB_DEVICE_CLASS_NUM: &str = "bDeviceClass"; // 9 = hub
     pub const USB_LOCATION: &str = "locationID"; // int; >>24 == bus id
+    pub const USB_BCD: &str = "bcdUSB"; // BCD USB spec, e.g. 0x0320
 }
 
 pub struct MacosProbe;
@@ -65,7 +67,9 @@ impl super::UsbProbe for MacosProbe {
             let iousb = run("ioreg", &["-a", "-l", "-p", "IOUSB"])?;
             let tb = run("system_profiler", &["-json", "SPThunderboltDataType"])
                 .unwrap_or_default();
-            Self::parse_snapshot(&ports, &iousb, &tb)
+            let battery = run("ioreg", &["-a", "-r", "-c", "AppleSmartBattery"])
+                .unwrap_or_default();
+            Self::parse_snapshot(&ports, &iousb, &tb, &battery)
         }
     }
 }
@@ -76,6 +80,7 @@ impl MacosProbe {
         ioreg_ports: &str,
         ioreg_iousb: &str,
         sp_thunderbolt_json: &str,
+        ioreg_battery: &str,
     ) -> Result<Snapshot, ProbeError> {
         let root = Value::from_reader_xml(Cursor::new(ioreg_ports.as_bytes()))
             .map_err(|e| ProbeError::ParseFailed(format!("ioreg ports plist: {e}")))?;
@@ -104,6 +109,7 @@ impl MacosProbe {
 
         attach_iousb_devices(&mut ports, ioreg_iousb);
         attach_thunderbolt(&mut ports, sp_thunderbolt_json);
+        attach_adapter(&mut ports, ioreg_battery);
 
         Ok(Snapshot {
             ports,
@@ -269,6 +275,17 @@ fn usb_device_node(d: &plist::Dictionary) -> DeviceNode {
         })
         .unwrap_or_default();
 
+    let usb_version = d.get(keys::USB_BCD).and_then(int_of).and_then(|b| {
+        // BCD: 0x0320 -> "3.2". bcdUSB is often decimal-encoded in the plist.
+        let hi = (b >> 8) & 0xff;
+        let lo = (b >> 4) & 0xf;
+        if hi == 0 {
+            None
+        } else {
+            Some(format!("USB {hi}.{lo}"))
+        }
+    });
+
     DeviceNode {
         name,
         vendor: d
@@ -276,6 +293,7 @@ fn usb_device_node(d: &plist::Dictionary) -> DeviceNode {
             .and_then(Value::as_string)
             .map(str::to_string),
         speed,
+        usb_version,
         is_hub,
         children,
     }
@@ -323,6 +341,90 @@ fn port_number(id: &str) -> Option<u64> {
     id.rsplit('@').next().and_then(|s| s.parse().ok())
 }
 
+// --- power adapter from `ioreg -rc AppleSmartBattery` ---
+
+/// Parse `AdapterDetails` and hang it on the best-guess charging port (the
+/// occupied non-MagSafe port with the most devices — i.e. the dock — else the
+/// first occupied port). macOS exposes one global adapter, not per-port.
+fn attach_adapter(ports: &mut [Port], battery_plist: &str) {
+    let Ok(root) = Value::from_reader_xml(Cursor::new(battery_plist.as_bytes())) else {
+        return;
+    };
+    let mut details = None;
+    for n in Walk::new(&root) {
+        if let Some(d) = n.as_dictionary().and_then(|d| d.get("AdapterDetails")).and_then(Value::as_dictionary) {
+            details = Some(d.clone());
+            break;
+        }
+    }
+    let Some(d) = details else { return };
+
+    let watts = d.get("Watts").and_then(int_of).map(|w| w as u16);
+    if watts.unwrap_or(0) == 0 {
+        return; // no adapter connected
+    }
+    let volts = d.get("AdapterVoltage").and_then(int_of).map(|mv| mv as f32 / 1000.0);
+    let amps = d.get("Current").and_then(int_of).map(|ma| ma as f32 / 1000.0);
+    let profile_volts: Vec<u16> = d
+        .get("UsbHvcMenu")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|p| p.as_dictionary())
+                .filter_map(|p| p.get("MaxVoltage").and_then(int_of))
+                .map(|mv| (mv / 1000) as u16)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let charger = Charger {
+        negotiated_volts: volts,
+        negotiated_amps: amps,
+        watts,
+        is_charging: true,
+        profile_volts,
+        cable_current_limit_amps: None,
+    };
+
+    let target = ports
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.occupied && p.kind != "MagSafe 3")
+        .max_by_key(|(_, p)| device_count(&p.devices))
+        .map(|(i, _)| i)
+        .or_else(|| ports.iter().position(|p| p.occupied));
+    if let Some(i) = target {
+        let limit = ports[i].emarker.current_amps;
+        ports[i].charger = Some(Charger {
+            cable_current_limit_amps: limit,
+            ..charger
+        });
+    }
+}
+
+fn device_count(ds: &[DeviceNode]) -> usize {
+    ds.iter().map(|d| 1 + device_count(&d.children)).sum()
+}
+
+/// Map raw `TransportsSupported` / `TransportsActive` tokens to friendly names.
+fn friendly_transports(raw: &[String]) -> Vec<String> {
+    let mut out = Vec::new();
+    for t in raw {
+        let name = match t.to_ascii_uppercase().as_str() {
+            "CIO" | "TBT" => "Thunderbolt / USB4",
+            "DISPLAYPORT" => "DisplayPort",
+            "USB3" => "USB 3.2",
+            "USB2" => "USB 2.0",
+            "CC" => continue, // configuration channel, not user-facing
+            _ => continue,
+        };
+        if !out.iter().any(|x| x == name) {
+            out.push(name.to_string());
+        }
+    }
+    out
+}
+
 fn tb_node(v: &serde_json::Value) -> DeviceNode {
     let name = v.get("_name").and_then(|x| x.as_str()).unwrap_or("Thunderbolt device");
     let speed = v
@@ -338,6 +440,7 @@ fn tb_node(v: &serde_json::Value) -> DeviceNode {
         } else {
             speed
         },
+        usb_version: None,
         is_hub: false,
         children: v
             .get("_items")
@@ -362,6 +465,12 @@ fn port_from_node(d: &plist::Dictionary) -> Port {
         .map(|a| a.iter().filter_map(Value::as_string).map(str::to_string).collect())
         .unwrap_or_default();
     let dp_alt = active.iter().any(|t| t.eq_ignore_ascii_case("displayport"));
+
+    let supported_raw: Vec<String> = d
+        .get(keys::TRANSPORTS_SUPPORTED)
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_string).map(str::to_string).collect())
+        .unwrap_or_default();
 
     let current_limits: Vec<u64> = d
         .get(keys::CURRENT_LIMITS)
@@ -398,18 +507,7 @@ fn port_from_node(d: &plist::Dictionary) -> Port {
         EmarkerInfo::default()
     };
 
-    // ponytail: no IOPortFeaturePowerSource on this hardware — synthesize a
-    // charger only when the port reports non-zero current limits.
-    let charger = if occupied && max_ma > 0 {
-        Some(Charger {
-            negotiated_volts: None,
-            negotiated_amps: Some(max_ma as f32 / 1000.0),
-            cable_current_limit_amps: current_amps,
-        })
-    } else {
-        None
-    };
-
+    // Charger is filled by attach_adapter from AppleSmartBattery.
     Port {
         id: s(keys::PORT_DESC).unwrap_or_else(|| {
             format!(
@@ -422,9 +520,10 @@ fn port_from_node(d: &plist::Dictionary) -> Port {
         occupied,
         orientation: i(keys::ORIENTATION).map(|v| v as u8),
         active_transport: emarker::transport_from_active(&active),
+        supported: friendly_transports(&supported_raw),
         dp_alt,
         emarker,
-        charger,
+        charger: None,
         devices: Vec::new(),
         raw: raw_dump(d),
     }
@@ -523,7 +622,9 @@ mod tests {
     const BASELINE: &str = include_str!("../../tests/fixtures/ioreg_ports.plist");
     const OCC_PORTS: &str = include_str!("../../tests/fixtures/ioreg_ports_occupied.plist");
     const OCC_USB: &str = include_str!("../../tests/fixtures/ioreg_iousb_occupied.plist");
+    const BATTERY: &str = include_str!("../../tests/fixtures/ioreg_battery_charging.plist");
     const NO_TB: &str = r#"{"SPThunderboltDataType":[]}"#;
+    const NO_BATT: &str = "";
 
     fn count(d: &DeviceNode) -> usize {
         1 + d.children.iter().map(count).sum::<usize>()
@@ -544,7 +645,7 @@ mod tests {
 
     #[test]
     fn baseline_four_empty_ports_no_devices() {
-        let snap = MacosProbe::parse_snapshot(BASELINE, "", NO_TB).unwrap();
+        let snap = MacosProbe::parse_snapshot(BASELINE, "", NO_TB, NO_BATT).unwrap();
         assert_eq!(snap.ports.len(), 4);
         assert!(snap.ports.iter().all(|p| !p.occupied));
         assert!(snap.ports.iter().all(|p| p.devices.is_empty()));
@@ -554,14 +655,14 @@ mod tests {
     #[test]
     fn garbage_ports_plist_is_err() {
         assert!(matches!(
-            MacosProbe::parse_snapshot("not a plist", "", NO_TB),
+            MacosProbe::parse_snapshot("not a plist", "", NO_TB, NO_BATT),
             Err(ProbeError::ParseFailed(_))
         ));
     }
 
     #[test]
     fn occupied_capture_two_ports_active() {
-        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB).unwrap();
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT).unwrap();
         assert_eq!(snap.ports.len(), 4, "3 USB-C + MagSafe, deduped");
         let occ: Vec<&Port> = snap.ports.iter().filter(|p| p.occupied).collect();
         assert_eq!(occ.len(), 2);
@@ -569,7 +670,7 @@ mod tests {
 
     #[test]
     fn dp_cable_port_is_flagged_dp_alt() {
-        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB).unwrap();
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT).unwrap();
         // Port 3 had TransportsActive ["CC","USB2","DisplayPort"].
         let p3 = snap.ports.iter().find(|p| p.id == "Port-USB-C@3").unwrap();
         assert!(p3.dp_alt);
@@ -578,7 +679,7 @@ mod tests {
 
     #[test]
     fn hub_tree_is_attached_and_nested() {
-        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB).unwrap();
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT).unwrap();
         let devs = all_devices(&snap);
         let names: Vec<&str> = devs.iter().map(|d| d.name.as_str()).collect();
         assert!(names.contains(&"USB3.1 Hub"), "got {names:?}");
@@ -595,11 +696,50 @@ mod tests {
 
     #[test]
     fn devices_land_on_occupied_ports_only() {
-        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB).unwrap();
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT).unwrap();
         for p in &snap.ports {
             if !p.devices.is_empty() {
                 assert!(p.occupied, "devices on an unoccupied port: {}", p.id);
             }
         }
+    }
+
+    #[test]
+    fn adapter_attaches_to_the_dock_port() {
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, BATTERY).unwrap();
+        let charged: Vec<&Port> = snap.ports.iter().filter(|p| p.charger.is_some()).collect();
+        assert_eq!(charged.len(), 1, "one port carries the adapter");
+        let c = charged[0].charger.as_ref().unwrap();
+        assert_eq!(c.watts, Some(50));
+        assert_eq!(c.negotiated_volts, Some(20.0));
+        assert_eq!(c.profile_volts, vec![5, 9, 15, 20]);
+        // the dock (most devices), not the DP-cable port
+        assert!(!charged[0].devices.is_empty());
+    }
+
+    #[test]
+    fn port_capabilities_are_friendly() {
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT).unwrap();
+        let p1 = snap.ports.iter().find(|p| p.id == "Port-USB-C@1").unwrap();
+        assert!(p1.supported.contains(&"Thunderbolt / USB4".to_string()));
+        assert!(p1.supported.contains(&"DisplayPort".to_string()));
+        assert!(!p1.supported.iter().any(|s| s == "CC"));
+    }
+
+    #[test]
+    fn usb_version_decoded_from_bcd() {
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT).unwrap();
+        let mut all = Vec::new();
+        fn rec<'a>(d: &'a DeviceNode, o: &mut Vec<&'a DeviceNode>) {
+            o.push(d);
+            d.children.iter().for_each(|c| rec(c, o));
+        }
+        for p in &snap.ports {
+            for d in &p.devices {
+                rec(d, &mut all);
+            }
+        }
+        let hub = all.iter().find(|d| d.name == "USB3.1 Hub").unwrap();
+        assert_eq!(hub.usb_version.as_deref(), Some("USB 3.2"));
     }
 }

@@ -14,12 +14,16 @@ export interface DeviceNode {
   name: string;
   vendor: string | null;
   speed: string;
+  usb_version: string | null;
   is_hub: boolean;
   children: DeviceNode[];
 }
 export interface Charger {
   negotiated_volts: number | null;
   negotiated_amps: number | null;
+  watts: number | null;
+  is_charging: boolean;
+  profile_volts: number[];
   cable_current_limit_amps: number | null;
 }
 export interface Port {
@@ -28,6 +32,7 @@ export interface Port {
   occupied: boolean;
   orientation: number | null;
   active_transport: string;
+  supported: string[];
   dp_alt: boolean;
   emarker: Emarker;
   charger: Charger | null;
@@ -39,7 +44,7 @@ export interface Snapshot {
   captured_ms: number;
 }
 export type Blame = "port" | "cable" | "device" | "none";
-export type CardKind = "data" | "charging" | "display" | "cable";
+export type CardKind = "port" | "data" | "charging" | "display" | "cable";
 export type CardStatus = "ok" | "warn" | "bad" | "idle";
 export interface VerdictCard {
   kind: CardKind;
