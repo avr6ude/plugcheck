@@ -11,11 +11,25 @@
   import EngineerPanel from "$lib/EngineerPanel.svelte";
   import SettingsPanel from "$lib/SettingsPanel.svelte";
   import Sidebar from "$lib/Sidebar.svelte";
+  import PowerMonitor from "$lib/PowerMonitor.svelte";
+  import NegotiationView from "$lib/NegotiationView.svelte";
+  import DisplayView from "$lib/DisplayView.svelte";
+  import SavedCables from "$lib/SavedCables.svelte";
+
+  type View = "ports" | "power" | "negotiation" | "displays" | "cables";
+  const TITLE: Record<View, string> = {
+    ports: "USB-C & Thunderbolt inspector",
+    power: "Power monitor",
+    negotiation: "Negotiation diagnostics",
+    displays: "Display diagnostics",
+    cables: "Saved cables",
+  };
 
   let engineerPort = $state<string | null>(null);
   let showSettings = $state(false);
   let sidebar = $state(false);
   let technical = $state(false);
+  let view = $state<View>("ports");
 
   onMount(() => {
     let unlisten: (() => void) | undefined;
@@ -40,9 +54,14 @@
 
 <Sidebar
   open={sidebar}
+  {view}
   {technical}
   {deviceCount}
   onClose={() => (sidebar = false)}
+  onView={(v) => {
+    view = v;
+    sidebar = false;
+  }}
   onSettings={() => {
     sidebar = false;
     showSettings = true;
@@ -57,14 +76,24 @@
     /></svg>
   </button>
   <span class="wm">plugcheck</span>
-  <span class="sub">USB-C &amp; Thunderbolt inspector</span>
+  <span class="sub">{TITLE[view]}</span>
   {#if store.loading}<span class="load">…</span>{/if}
 </div>
 
 <main>
   {#if store.error}
     <p class="err">{store.error}</p>
-  {:else if store.snapshot}
+  {:else if !store.snapshot}
+    <p class="muted">Reading ports…</p>
+  {:else if view === "power"}
+    <PowerMonitor />
+  {:else if view === "negotiation"}
+    <NegotiationView />
+  {:else if view === "displays"}
+    <DisplayView />
+  {:else if view === "cables"}
+    <SavedCables />
+  {:else}
     <div class="list">
       {#each shown as port, i (port.id)}
         {#if port.occupied}
@@ -84,8 +113,6 @@
         {/if}
       {/each}
     </div>
-  {:else}
-    <p class="muted">Reading ports…</p>
   {/if}
 
   <footer>

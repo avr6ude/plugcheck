@@ -1,21 +1,35 @@
 <script lang="ts">
   import { settings, saveSettings, refresh, store } from "./snapshot.svelte";
 
+  type View = "ports" | "power" | "negotiation" | "displays" | "cables";
+
   let {
     open,
+    view,
     technical,
     deviceCount,
     onClose,
+    onView,
     onSettings,
     onToggleTechnical,
   }: {
     open: boolean;
+    view: View;
     technical: boolean;
     deviceCount: number;
     onClose: () => void;
+    onView: (v: View) => void;
     onSettings: () => void;
     onToggleTechnical: () => void;
   } = $props();
+
+  const NAV: { id: View; label: string; icon: string }[] = [
+    { id: "ports", label: "Ports", icon: "▤" },
+    { id: "power", label: "Power monitor", icon: "◠" },
+    { id: "negotiation", label: "Negotiation", icon: "⇄" },
+    { id: "displays", label: "Displays", icon: "▭" },
+    { id: "cables", label: "Saved cables", icon: "❏" },
+  ];
 
   function toggleEmpty() {
     settings.hide_empty = !settings.hide_empty;
@@ -39,12 +53,18 @@
   </div>
 
   <nav>
-    <button onclick={() => { refresh(); }}>
-      <span class="i">↻</span> Refresh now
-    </button>
-    <button onclick={onSettings}>
-      <span class="i">⚙</span> Settings…
-    </button>
+    {#each NAV as n}
+      <button class:sel={view === n.id} onclick={() => onView(n.id)}>
+        <span class="i">{n.icon}</span> {n.label}
+      </button>
+    {/each}
+  </nav>
+
+  <div class="sep"></div>
+
+  <nav>
+    <button onclick={() => refresh()}><span class="i">↻</span> Refresh now</button>
+    <button onclick={onSettings}><span class="i">⚙</span> Settings…</button>
     <button class="chk" onclick={onToggleTechnical}>
       <span class="box" class:on={technical}>{technical ? "✓" : ""}</span>
       Show technical details
@@ -57,7 +77,7 @@
 
   <div class="foot">
     <div>{deviceCount} USB device{deviceCount === 1 ? "" : "s"}</div>
-    <div class="ver">plugcheck {store.version}</div>
+    <div>plugcheck {store.version}</div>
     <div class="hint">CLI: <code>plugcheck --text</code></div>
   </div>
 </aside>
@@ -74,7 +94,7 @@
     top: 0;
     left: 0;
     bottom: 0;
-    width: 220px;
+    width: 230px;
     background: var(--card);
     border-right: 0.5px solid var(--line);
     transform: translateX(-100%);
@@ -102,7 +122,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.1rem;
-    flex: 1;
   }
   nav button {
     display: flex;
@@ -121,10 +140,23 @@
   nav button:hover {
     background: color-mix(in srgb, var(--muted) 12%, transparent);
   }
+  nav button.sel {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: color-mix(in srgb, var(--accent) 70%, var(--fg));
+    font-weight: 600;
+  }
   .i {
     width: 1.1rem;
     text-align: center;
     color: var(--muted);
+  }
+  nav button.sel .i {
+    color: inherit;
+  }
+  .sep {
+    height: 0.5px;
+    background: var(--line);
+    margin: 0.5rem 0;
   }
   .box {
     width: 15px;
@@ -141,6 +173,7 @@
     border-color: var(--accent);
   }
   .foot {
+    margin-top: auto;
     border-top: 0.5px solid var(--line);
     padding: 0.6rem 0.4rem 0;
     font-size: 0.72rem;

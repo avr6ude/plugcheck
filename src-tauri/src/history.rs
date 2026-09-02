@@ -126,6 +126,30 @@ pub fn rename(app: &tauri::AppHandle, sig: &str, name: Option<String>) {
     }
 }
 
+#[derive(serde::Serialize)]
+pub struct SavedCable {
+    pub sig: String,
+    #[serde(flatten)]
+    pub entry: HistoryEntry,
+}
+
+/// Everything the store has seen, most-recent first.
+pub fn list(app: &tauri::AppHandle) -> Vec<SavedCable> {
+    let mut v: Vec<SavedCable> = load(app)
+        .into_iter()
+        .map(|(sig, entry)| SavedCable { sig, entry })
+        .collect();
+    v.sort_by(|a, b| b.entry.last_seen.cmp(&a.entry.last_seen));
+    v
+}
+
+pub fn forget(app: &tauri::AppHandle, sig: &str) {
+    let mut store = load(app);
+    if store.remove(sig).is_some() {
+        write(app, &store);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

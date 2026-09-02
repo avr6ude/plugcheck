@@ -109,7 +109,23 @@ export const store = $state<{
   error: string | null;
   loading: boolean;
   version: string;
-}>({ snapshot: null, verdicts: [], error: null, loading: false, version: "" });
+  power: { t: number; w: number }[];
+}>({
+  snapshot: null,
+  verdicts: [],
+  error: null,
+  loading: false,
+  version: "",
+  power: [],
+});
+
+function samplePower(s: Snapshot | null) {
+  if (!s) return;
+  const c = s.ports.map((p) => p.charger).find((c) => c);
+  const w = c?.live_watts ?? c?.watts ?? 0;
+  store.power.push({ t: Date.now(), w });
+  if (store.power.length > 150) store.power.shift();
+}
 
 invoke<string>("app_version")
   .then((v) => (store.version = "v" + v))
@@ -120,6 +136,7 @@ export async function refresh(): Promise<void> {
   try {
     store.snapshot = await invoke<Snapshot>("get_snapshot");
     store.verdicts = await invoke<PortVerdict[]>("get_verdicts");
+    samplePower(store.snapshot);
     store.error = null;
   } catch (e) {
     store.error = String(e);
@@ -132,6 +149,7 @@ export async function startPolling(): Promise<UnlistenFn> {
   await refresh();
   return listen<Snapshot>("snapshot-changed", (ev) => {
     store.snapshot = ev.payload;
+    samplePower(ev.payload);
     invoke<PortVerdict[]>("get_verdicts")
       .then((v) => (store.verdicts = v))
       .catch((e) => (store.error = String(e)));
@@ -140,6 +158,28 @@ export async function startPolling(): Promise<UnlistenFn> {
 
 export function verdictFor(id: string): PortVerdict | undefined {
   return store.verdicts.find((v) => v.port_id === id);
+}
+
+export interface SavedCable {
+  sig: string;
+  name: string | null;
+  count: number;
+  first_seen: string;
+  last_seen: string;
+}
+export async function savedCables(): Promise<SavedCable[]> {
+  try {
+    return await invoke<SavedCable[]>("saved_cables");
+  } catch {
+    return [];
+  }
+}
+export async function forgetCable(sig: string): Promise<void> {
+  try {
+    await invoke("forget_cable", { sig });
+  } catch {
+    /* ignore */
+  }
 }
 
 export async function renameCable(sig: string, name: string | null): Promise<void> {

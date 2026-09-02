@@ -262,6 +262,16 @@ fn rename_cable(app: tauri::AppHandle, sig: String, name: Option<String>) {
 }
 
 #[tauri::command]
+fn saved_cables(app: tauri::AppHandle) -> Vec<history::SavedCable> {
+    history::list(&app)
+}
+
+#[tauri::command]
+fn forget_cable(app: tauri::AppHandle, sig: String) {
+    history::forget(&app, &sig);
+}
+
+#[tauri::command]
 fn engineer_dump(
     port_id: String,
     state: State<AppState>,
@@ -383,6 +393,8 @@ pub fn run() {
             get_settings,
             set_settings,
             rename_cable,
+            saved_cables,
+            forget_cable,
             app_version
         ])
         .run(tauri::generate_context!())
