@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Port, PortVerdict, CardStatus, VerdictCard } from "./snapshot.svelte";
+  import type { Port, PortVerdict, CardStatus } from "./snapshot.svelte";
   import { renameCable } from "./snapshot.svelte";
   import DeviceTree from "./DeviceTree.svelte";
 
@@ -25,17 +25,8 @@
     port.history?.name ?? verdict?.headline ?? (port.occupied ? "Connected" : "Empty"),
   );
 
-  // chip strip: data / power / video at a glance
-  const chips = $derived(
-    (verdict?.cards ?? []).filter((c) => c.chip) as VerdictCard[],
-  );
-  const chipLabel: Record<string, string> = {
-    data: "Data",
-    charging: "Power",
-    display: "Video",
-  };
-
   let editing = $state(false);
+  let expandAll = $state(false);
   let draft = $state("");
   function startEdit() {
     draft = port.history?.name ?? "";
@@ -115,7 +106,17 @@
 
 <section class="port">
   <div class="hdr">
-    <span class="dot {worst}"></span>
+    <span class="ico {worst}" aria-hidden="true">
+      {#if worst === "ok"}
+        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M3.5 8.5 L6.5 11.5 L12.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      {:else if worst === "warn"}
+        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M8 2 L15 14 L1 14 Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 6.5 V9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.6" r="0.9" fill="currentColor"/></svg>
+      {:else if worst === "bad"}
+        <svg viewBox="0 0 16 16" width="15" height="15"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.6 5.6 L10.4 10.4 M10.4 5.6 L5.6 10.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      {:else}
+        <svg viewBox="0 0 16 16" width="15" height="15"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      {/if}
+    </span>
     {#if editing}
       <input
         class="rename"
@@ -132,17 +133,6 @@
       <span class="seen">seen {port.history.count}× · {port.history.first_seen}</span>
     {/if}
   </div>
-
-  {#if chips.length}
-    <div class="chips">
-      {#each chips as c}
-        <span class="chip {c.status}">
-          <b>{chipLabel[c.kind] ?? c.title}</b>
-          {c.chip}
-        </span>
-      {/each}
-    </div>
-  {/if}
 
   <div class="fields">
     {#each verdict?.cards ?? [] as card}
@@ -171,9 +161,14 @@
         <div class="k">
           Devices
           <span class="cnt">{deviceCount()}{hubCount() ? ` · ${hubCount()} hub${hubCount() === 1 ? "" : "s"}` : ""}</span>
+          {#if hubCount()}
+            <button class="showall" onclick={() => (expandAll = !expandAll)}>
+              {expandAll ? "Collapse" : "Show all"}
+            </button>
+          {/if}
         </div>
         <div class="v">
-          <DeviceTree nodes={port.devices} />
+          <DeviceTree nodes={port.devices} forceOpen={expandAll} />
         </div>
       </div>
     {/if}
@@ -228,23 +223,24 @@
     align-items: center;
     gap: 0.4rem;
   }
-  .dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
+  .ico {
     flex: none;
+    display: grid;
+    place-items: center;
+    width: 15px;
+    height: 15px;
   }
-  .dot.ok {
-    background: var(--ok);
+  .ico.ok {
+    color: var(--ok);
   }
-  .dot.warn {
-    background: var(--warn);
+  .ico.warn {
+    color: var(--warn);
   }
-  .dot.bad {
-    background: var(--bad);
+  .ico.bad {
+    color: var(--bad);
   }
-  .dot.idle {
-    background: var(--muted);
+  .ico.idle {
+    color: var(--muted);
   }
   .title {
     font: 600 0.95rem/1.2 inherit;
@@ -283,40 +279,14 @@
     white-space: nowrap;
   }
 
-  /* chip strip */
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin: 0.55rem 0 0.15rem;
-  }
-  .chip {
-    font-size: 0.74rem;
-    padding: 0.12rem 0.45rem;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    color: var(--fg);
-    background: color-mix(in srgb, var(--card) 88%, var(--muted));
-  }
-  .chip b {
-    font-weight: 600;
-    color: var(--muted);
-    margin-right: 0.25rem;
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-  .chip.ok {
-    border-color: color-mix(in srgb, var(--ok) 45%, transparent);
-    background: color-mix(in srgb, var(--ok) 12%, var(--card));
-  }
-  .chip.warn {
-    border-color: color-mix(in srgb, var(--warn) 50%, transparent);
-    background: color-mix(in srgb, var(--warn) 14%, var(--card));
-  }
-  .chip.bad {
-    border-color: color-mix(in srgb, var(--bad) 50%, transparent);
-    background: color-mix(in srgb, var(--bad) 12%, var(--card));
+  .showall {
+    margin-left: 0.4rem;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--accent);
+    font-size: 0.72rem;
+    cursor: pointer;
   }
 
   /* get-info style fields */

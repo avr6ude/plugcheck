@@ -2,10 +2,15 @@
   import type { DeviceNode } from "./snapshot.svelte";
   import Self from "./DeviceTree.svelte";
 
-  let { nodes, depth = 0 }: { nodes: DeviceNode[]; depth?: number } = $props();
+  let {
+    nodes,
+    depth = 0,
+    forceOpen = false,
+  }: { nodes: DeviceNode[]; depth?: number; forceOpen?: boolean } = $props();
 
-  // Hubs start collapsed (WhatCable does the same).
+  // Hubs start collapsed (WhatCable does the same); `forceOpen` expands the lot.
   let open = $state<Record<string, boolean>>({});
+  const isOpen = (key: string) => forceOpen || open[key] === true;
 
   function speedLabel(s: string): string {
     const map: Record<string, string> = {
@@ -36,10 +41,10 @@
       <div class="row">
         <button
           class="caret"
-          class:open={open[key]}
+          class:open={isOpen(key)}
           class:hidden={!collapsible}
-          onclick={() => (open[key] = !open[key])}
-          aria-label={open[key] ? "collapse" : "expand"}
+          onclick={() => (open[key] = !isOpen(key))}
+          aria-label={isOpen(key) ? "collapse" : "expand"}
         >
           <svg viewBox="0 0 12 12" width="9" height="9" aria-hidden="true">
             <path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
@@ -48,7 +53,7 @@
         <div class="info">
           <div class="line1">
             <span class="name">{n.name}</span>
-            {#if collapsible && !open[key]}
+            {#if collapsible && !isOpen(key)}
               <span class="count">· {subtreeCount(n)} device{subtreeCount(n) === 1 ? "" : "s"}</span>
             {/if}
             {#if speedLabel(n.speed)}<span class="speed">{speedLabel(n.speed)}</span>{/if}
@@ -62,8 +67,8 @@
           </div>
         </div>
       </div>
-      {#if hasKids && (open[key] || !n.is_hub)}
-        <Self nodes={n.children} depth={depth + 1} />
+      {#if hasKids && (isOpen(key) || !n.is_hub)}
+        <Self nodes={n.children} depth={depth + 1} {forceOpen} />
       {/if}
     </li>
   {/each}
