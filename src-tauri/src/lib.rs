@@ -7,6 +7,8 @@ use std::collections::BTreeMap;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, State};
 
 use crate::model::Snapshot;
@@ -28,6 +30,36 @@ fn changed(old: &Option<Snapshot>, new: &Snapshot) -> bool {
     }
 }
 
+/// One-line status for the menu-bar tooltip.
+fn tray_summary(snap: &Snapshot) -> String {
+    let active = snap.ports.iter().filter(|p| p.occupied).count();
+    let devices: usize = snap
+        .ports
+        .iter()
+        .map(|p| {
+            fn n(d: &crate::model::DeviceNode) -> usize {
+                1 + d.children.iter().map(n).sum::<usize>()
+            }
+            p.devices.iter().map(n).sum::<usize>()
+        })
+        .sum();
+    let watts = snap
+        .ports
+        .iter()
+        .find_map(|p| p.charger.as_ref().and_then(|c| c.watts));
+    let mut s = format!(
+        "plugcheck — {active} port{} in use",
+        if active == 1 { "" } else { "s" }
+    );
+    if devices > 0 {
+        s.push_str(&format!(", {devices} device{}", if devices == 1 { "" } else { "s" }));
+    }
+    if let Some(w) = watts {
+        s.push_str(&format!(", charging {w} W"));
+    }
+    s
+}
+
 #[cfg(target_os = "macos")]
 fn make_probe() -> Box<dyn UsbProbe> {
     Box::new(crate::probe::macos::MacosProbe)
@@ -42,6 +74,32 @@ fn make_probe() -> Box<dyn UsbProbe> {
         }
     }
     Box::new(Unsupported)
+}
+
+/// `plugcheck --json`: probe once, print `{ snapshot, verdicts }`, exit.
+pub fn print_json() {
+    let probe = make_probe();
+    match probe.snapshot() {
+        Ok(snap) => {
+            let out = serde_json::json!({
+                "snapshot": snap,
+                "verdicts": verdicts(&snap),
+            });
+            println!("{}", serde_json::to_string_pretty(&out).unwrap());
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn show_main(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
 }
 
 #[tauri::command]
@@ -85,14 +143,42 @@ pub fn run() {
             engineer_dump
         ])
         .setup(|app| {
+            // --- menu-bar tray ---
+            let open_i = MenuItem::with_id(app, "open", "Open plugcheck", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open_i, &quit_i])?;
+            let tray = TrayIconBuilder::with_id("plugcheck")
+                .icon(app.default_window_icon().cloned().unwrap())
+                .icon_as_template(true)
+                .tooltip("plugcheck")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => show_main(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        show_main(tray.app_handle());
+                    }
+                })
+                .build(app)?;
+
+            // --- poll thread ---
             let handle = app.handle().clone();
-            // Plain polling thread — no async runtime needed for a 3 s tick.
             std::thread::spawn(move || loop {
                 std::thread::sleep(POLL_INTERVAL);
                 let state = handle.state::<AppState>();
                 let Ok(snap) = state.probe.snapshot() else {
                     continue;
                 };
+                let _ = tray.set_tooltip(Some(tray_summary(&snap)));
                 let mut last = state.last.lock().unwrap();
                 if changed(&last, &snap) {
                     *last = Some(snap.clone());
@@ -125,5 +211,11 @@ mod tests {
     #[test]
     fn changed_true_when_no_prior() {
         assert!(changed(&None, &empty(0)));
+    }
+
+    #[test]
+    fn tray_summary_reads_well() {
+        let s = empty(0);
+        assert_eq!(tray_summary(&s), "plugcheck — 0 ports in use");
     }
 }

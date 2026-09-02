@@ -90,6 +90,14 @@ pub struct DeviceNode {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct DisplayInfo {
+    pub name: String,
+    /// Native pixel resolution, e.g. "2560 x 1440".
+    pub pixels: Option<String>,
+    pub hz: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Charger {
     pub negotiated_volts: Option<f32>,
     pub negotiated_amps: Option<f32>,
@@ -132,6 +140,8 @@ pub struct Port {
     pub hpd: bool,
     /// DisplayPort Alt Mode is carrying video on this port.
     pub dp_alt: bool,
+    /// The external monitor this port is driving, if any.
+    pub display: Option<DisplayInfo>,
     pub emarker: EmarkerInfo,
     pub charger: Option<Charger>,
     pub devices: Vec<DeviceNode>,
@@ -188,6 +198,7 @@ mod tests {
                 overcurrent_count: Some(0),
                 hpd: false,
                 dp_alt: false,
+                display: None,
                 emarker: EmarkerInfo {
                     vendor_id: Some(0x05ac),
                     vendor_name: Some("Apple".into()),

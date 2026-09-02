@@ -131,12 +131,22 @@ fn cards(p: &Port) -> Vec<VerdictCard> {
         });
     }
 
-    if p.dp_alt {
-        let text = if dp_only {
-            "DisplayPort video is active. USB data runs at USB 2.0, which is normal for a video adapter.".into()
-        } else {
-            "DisplayPort video is active alongside USB data.".into()
+    if p.dp_alt || p.display.is_some() {
+        let mut text = match &p.display {
+            Some(d) => {
+                let mut t = format!("Driving {}", d.name);
+                match (&d.pixels, d.hz) {
+                    (Some(px), Some(hz)) => t.push_str(&format!(" at {} @ {hz} Hz.", px.replace(" x ", " × "))),
+                    (Some(px), None) => t.push_str(&format!(" at {}.", px.replace(" x ", " × "))),
+                    _ => t.push('.'),
+                }
+                t
+            }
+            None => "DisplayPort video is active.".into(),
         };
+        if dp_only {
+            text.push_str(" USB data runs at USB 2.0, which is normal for a video adapter.");
+        }
         out.push(VerdictCard {
             kind: CardKind::Display,
             status: CardStatus::Ok,
@@ -421,6 +431,7 @@ mod tests {
                 overcurrent_count: Some(0),
                 hpd: false,
                 dp_alt,
+                display: None,
                 emarker,
                 charger,
                 devices,

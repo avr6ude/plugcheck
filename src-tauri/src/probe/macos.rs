@@ -101,7 +101,9 @@ impl super::UsbProbe for MacosProbe {
                 .unwrap_or_default();
             let battery = run("ioreg", &["-a", "-r", "-c", "AppleSmartBattery"])
                 .unwrap_or_default();
-            Self::parse_snapshot(&ports, &iousb, &tb, &battery)
+            let displays = run("system_profiler", &["-json", "SPDisplaysDataType"])
+                .unwrap_or_default();
+            Self::parse_snapshot(&ports, &iousb, &tb, &battery, &displays)
         }
     }
 }
@@ -113,6 +115,7 @@ impl MacosProbe {
         ioreg_iousb: &str,
         sp_thunderbolt_json: &str,
         ioreg_battery: &str,
+        sp_displays_json: &str,
     ) -> Result<Snapshot, ProbeError> {
         let root = Value::from_reader_xml(Cursor::new(ioreg_ports.as_bytes()))
             .map_err(|e| ProbeError::ParseFailed(format!("ioreg ports plist: {e}")))?;
@@ -142,6 +145,7 @@ impl MacosProbe {
         attach_iousb_devices(&mut ports, ioreg_iousb);
         attach_thunderbolt(&mut ports, sp_thunderbolt_json);
         attach_adapter(&mut ports, ioreg_battery);
+        attach_displays(&mut ports, sp_displays_json);
 
         Ok(Snapshot {
             ports,
@@ -390,6 +394,75 @@ fn port_number(id: &str) -> Option<u64> {
     id.rsplit('@').next().and_then(|s| s.parse().ok())
 }
 
+// --- external displays from `system_profiler SPDisplaysDataType` ---
+
+fn attach_displays(ports: &mut [Port], sp_json: &str) {
+    let Ok(sp) = serde_json::from_str::<serde_json::Value>(sp_json) else {
+        return;
+    };
+    let mut externals: Vec<crate::model::DisplayInfo> = Vec::new();
+    // walk every "spdisplays_ndrvs" array in the tree
+    fn collect(v: &serde_json::Value, out: &mut Vec<crate::model::DisplayInfo>) {
+        match v {
+            serde_json::Value::Object(m) => {
+                if let Some(arr) = m.get("spdisplays_ndrvs").and_then(|x| x.as_array()) {
+                    for d in arr {
+                        let conn = d
+                            .get("spdisplays_connection_type")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("");
+                        if conn == "spdisplays_internal" {
+                            continue; // built-in panel
+                        }
+                        let name = d
+                            .get("_name")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("Display")
+                            .to_string();
+                        let res = d
+                            .get("spdisplays_resolution")
+                            .or_else(|| d.get("_spdisplays_resolution"))
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("");
+                        let pixels = d
+                            .get("_spdisplays_pixels")
+                            .and_then(|x| x.as_str())
+                            .map(str::to_string)
+                            .or_else(|| res.split('@').next().map(|s| s.trim().to_string()))
+                            .filter(|s| !s.is_empty());
+                        let hz = res
+                            .split('@')
+                            .nth(1)
+                            .and_then(|s| s.trim().trim_end_matches("Hz").trim().parse::<f64>().ok())
+                            .map(|f| f.round() as u32);
+                        out.push(crate::model::DisplayInfo { name, pixels, hz });
+                    }
+                }
+                for x in m.values() {
+                    collect(x, out);
+                }
+            }
+            serde_json::Value::Array(a) => a.iter().for_each(|x| collect(x, out)),
+            _ => {}
+        }
+    }
+    collect(&sp, &mut externals);
+    if externals.is_empty() {
+        return;
+    }
+
+    // Hand each external display to a dp_alt / HPD port, in order.
+    let targets: Vec<usize> = ports
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.occupied && (p.dp_alt || p.hpd))
+        .map(|(i, _)| i)
+        .collect();
+    for (disp, &pi) in externals.into_iter().zip(targets.iter()) {
+        ports[pi].display = Some(disp);
+    }
+}
+
 // --- power adapter from `ioreg -rc AppleSmartBattery` ---
 
 /// Parse `AdapterDetails` and hang it on the best-guess charging port (the
@@ -611,6 +684,7 @@ fn port_from_node(d: &plist::Dictionary) -> Port {
         overcurrent_count: i(keys::OVERCURRENT).map(|v| v as u32),
         hpd: b(keys::HPD).unwrap_or(false),
         dp_alt,
+        display: None,
         emarker,
         charger: None,
         devices: Vec::new(),
@@ -714,6 +788,7 @@ mod tests {
     const BATTERY: &str = include_str!("../../tests/fixtures/ioreg_battery_charging.plist");
     const NO_TB: &str = r#"{"SPThunderboltDataType":[]}"#;
     const NO_BATT: &str = "";
+    const NO_DISP: &str = "";
 
     fn count(d: &DeviceNode) -> usize {
         1 + d.children.iter().map(count).sum::<usize>()
@@ -734,7 +809,7 @@ mod tests {
 
     #[test]
     fn baseline_four_empty_ports_no_devices() {
-        let snap = MacosProbe::parse_snapshot(BASELINE, "", NO_TB, NO_BATT).unwrap();
+        let snap = MacosProbe::parse_snapshot(BASELINE, "", NO_TB, NO_BATT, NO_DISP).unwrap();
         assert_eq!(snap.ports.len(), 4);
         assert!(snap.ports.iter().all(|p| !p.occupied));
         assert!(snap.ports.iter().all(|p| p.devices.is_empty()));
@@ -744,14 +819,14 @@ mod tests {
     #[test]
     fn garbage_ports_plist_is_err() {
         assert!(matches!(
-            MacosProbe::parse_snapshot("not a plist", "", NO_TB, NO_BATT),
+            MacosProbe::parse_snapshot("not a plist", "", NO_TB, NO_BATT, NO_DISP),
             Err(ProbeError::ParseFailed(_))
         ));
     }
 
     #[test]
     fn occupied_capture_two_ports_active() {
-        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT).unwrap();
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT, NO_DISP).unwrap();
         assert_eq!(snap.ports.len(), 4, "3 USB-C + MagSafe, deduped");
         let occ: Vec<&Port> = snap.ports.iter().filter(|p| p.occupied).collect();
         assert_eq!(occ.len(), 2);
@@ -759,7 +834,7 @@ mod tests {
 
     #[test]
     fn dp_cable_port_is_flagged_dp_alt() {
-        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT).unwrap();
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT, NO_DISP).unwrap();
         // Port 3 had TransportsActive ["CC","USB2","DisplayPort"].
         let p3 = snap.ports.iter().find(|p| p.id == "Port-USB-C@3").unwrap();
         assert!(p3.dp_alt);
@@ -768,7 +843,7 @@ mod tests {
 
     #[test]
     fn hub_tree_is_attached_and_nested() {
-        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT).unwrap();
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT, NO_DISP).unwrap();
         let devs = all_devices(&snap);
         let names: Vec<&str> = devs.iter().map(|d| d.name.as_str()).collect();
         assert!(names.contains(&"USB3.1 Hub"), "got {names:?}");
@@ -785,7 +860,7 @@ mod tests {
 
     #[test]
     fn devices_land_on_occupied_ports_only() {
-        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT).unwrap();
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT, NO_DISP).unwrap();
         for p in &snap.ports {
             if !p.devices.is_empty() {
                 assert!(p.occupied, "devices on an unoccupied port: {}", p.id);
@@ -795,7 +870,7 @@ mod tests {
 
     #[test]
     fn adapter_attaches_to_the_dock_port() {
-        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, BATTERY).unwrap();
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, BATTERY, NO_DISP).unwrap();
         let charged: Vec<&Port> = snap.ports.iter().filter(|p| p.charger.is_some()).collect();
         assert_eq!(charged.len(), 1, "one port carries the adapter");
         let c = charged[0].charger.as_ref().unwrap();
@@ -808,7 +883,7 @@ mod tests {
 
     #[test]
     fn port_capabilities_are_friendly() {
-        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT).unwrap();
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT, NO_DISP).unwrap();
         let p1 = snap.ports.iter().find(|p| p.id == "Port-USB-C@1").unwrap();
         assert!(p1.supported.contains(&"Thunderbolt / USB4".to_string()));
         assert!(p1.supported.contains(&"DisplayPort".to_string()));
@@ -817,7 +892,7 @@ mod tests {
 
     #[test]
     fn usb_version_decoded_from_bcd() {
-        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT).unwrap();
+        let snap = MacosProbe::parse_snapshot(OCC_PORTS, OCC_USB, NO_TB, NO_BATT, NO_DISP).unwrap();
         let mut all = Vec::new();
         fn rec<'a>(d: &'a DeviceNode, o: &mut Vec<&'a DeviceNode>) {
             o.push(d);

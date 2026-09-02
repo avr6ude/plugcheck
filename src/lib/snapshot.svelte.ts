@@ -45,6 +45,7 @@ export interface Port {
   overcurrent_count: number | null;
   hpd: boolean;
   dp_alt: boolean;
+  display: { name: string; pixels: string | null; hz: number | null } | null;
   emarker: Emarker;
   charger: Charger | null;
   devices: DeviceNode[];
