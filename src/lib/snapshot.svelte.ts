@@ -90,6 +90,7 @@ export interface VerdictCard {
   title: string;
   text: string;
   rows: [string, string][];
+  chip: string;
 }
 export interface PortVerdict {
   port_id: string;

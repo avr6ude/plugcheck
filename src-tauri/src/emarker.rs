@@ -89,20 +89,33 @@ pub fn cable_watts(current_amps: u8) -> Option<u16> {
     }
 }
 
-/// Vendor name for a USB-IF Vendor ID, from the bundled partial list.
+/// Vendor name for a USB Vendor ID, from the bundled `usb.ids` list
+/// (linux-usb.org, ~3400 vendors).
 pub fn vendor_name(vid: u16) -> Option<String> {
-    const CSV: &str = include_str!("../assets/usbif_vendors.csv");
-    for line in CSV.lines().skip(1) {
-        let mut it = line.splitn(2, ',');
-        let (Some(hex), Some(name)) = (it.next(), it.next()) else {
-            continue;
-        };
-        let hex = hex.trim().trim_start_matches("0x");
-        if u16::from_str_radix(hex, 16).ok() == Some(vid) {
-            return Some(name.trim().to_string());
+    use std::collections::HashMap;
+    use std::sync::OnceLock;
+    static MAP: OnceLock<HashMap<u16, &'static str>> = OnceLock::new();
+    let map = MAP.get_or_init(|| {
+        const CSV: &str = include_str!("../assets/usb_vendors.csv");
+        CSV.lines()
+            .filter_map(|l| {
+                let (hex, name) = l.split_once(',')?;
+                Some((u16::from_str_radix(hex, 16).ok()?, name))
+            })
+            .collect()
+    });
+    map.get(&vid).map(|s| {
+        let s = s.trim();
+        for suf in [
+            ", Inc.", ", Ltd.", ", Ltd", ", Corp.", ", Co., Ltd.", ", LLC", ", GmbH",
+            ", S.A.", " Inc.", " Corp.",
+        ] {
+            if let Some(base) = s.strip_suffix(suf) {
+                return base.trim_end_matches(',').trim().to_string();
+            }
         }
-    }
-    None
+        s.to_string()
+    })
 }
 
 #[cfg(test)]
@@ -141,7 +154,7 @@ mod tests {
     #[test]
     fn vendor_lookup() {
         assert_eq!(vendor_name(0x05ac).as_deref(), Some("Apple"));
-        assert_eq!(vendor_name(0x2ce3).as_deref(), Some("CalDigit"));
+        assert_eq!(vendor_name(0x2109).as_deref(), Some("VIA Labs"));
         assert_eq!(vendor_name(0xffff), None);
     }
 }

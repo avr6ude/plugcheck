@@ -180,15 +180,15 @@
   .list {
     display: flex;
     flex-direction: column;
-    gap: 1.1rem;
+    gap: 0.9rem;
   }
   .slot-label {
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     font-weight: 600;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--muted);
-    margin: 0 0 0.35rem 0.9rem;
+    margin: 0 0 0.3rem 0.15rem;
   }
   .empty-row {
     display: flex;

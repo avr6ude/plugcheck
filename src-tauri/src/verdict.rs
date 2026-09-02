@@ -42,6 +42,9 @@ pub struct VerdictCard {
     /// Structured label/value rows (used by Charging and Display).
     #[serde(default)]
     pub rows: Vec<[String; 2]>,
+    /// Short 2–3 word label for the verdict-chip strip. Empty = no chip.
+    #[serde(default)]
+    pub chip: String,
 }
 
 impl VerdictCard {
@@ -52,6 +55,7 @@ impl VerdictCard {
             title: title.into(),
             text,
             rows: vec![],
+            chip: String::new(),
         }
     }
 }
@@ -142,12 +146,21 @@ fn cards(p: &Port) -> Vec<VerdictCard> {
     }
 
     if !dp_only {
-        out.push(VerdictCard::prose(
+        let mut c = VerdictCard::prose(
             CardKind::Data,
             blame_status(data_blame),
             "Data speed",
-            data_line,
-        ));
+            data_line.clone(),
+        );
+        c.chip = match data_blame {
+            _ if data_line.contains("No data device") => "No device".into(),
+            Blame::None => "Full speed".into(),
+            Blame::Cable if data_line.contains("USB 2.0") => "USB 2.0 cable".into(),
+            Blame::Cable => "Cable limit".into(),
+            Blame::Port => "Port limit".into(),
+            Blame::Device => "Device limit".into(),
+        };
+        out.push(c);
     }
 
     if p.dp_alt || p.display.is_some() {
@@ -216,6 +229,21 @@ fn display_card(p: &Port, dp_only: bool) -> VerdictCard {
         CardStatus::Ok
     };
 
+    let chip = if d.degraded {
+        "Below native".into()
+    } else {
+        match (&d.pixels, d.hz) {
+            (Some(px), Some(hz)) => {
+                let h = px.split('x').nth(1).and_then(|s| s.trim().parse::<u32>().ok());
+                match h {
+                    Some(h) => format!("{h}p · {hz} Hz"),
+                    None => format!("{hz} Hz"),
+                }
+            }
+            _ => "Active".into(),
+        }
+    };
+
     VerdictCard {
         kind: CardKind::Display,
         status,
@@ -226,6 +254,7 @@ fn display_card(p: &Port, dp_only: bool) -> VerdictCard {
             String::new()
         },
         rows,
+        chip,
     }
 }
 
@@ -269,10 +298,21 @@ fn charging_card(p: &Port) -> Option<VerdictCard> {
         }
     }
 
-    if p.emarker.current_amps == Some(3) && c.watts.map_or(true, |w| w > 60) {
+    let cable_limited = p.emarker.current_amps == Some(3) && c.watts.map_or(true, |w| w > 60);
+    if cable_limited {
         rows.push(row("Cable limit", "~60 W (3 A cable)"));
         status = CardStatus::Warn;
     }
+
+    let chip = if c.fully_charged || !c.is_charging {
+        "Battery full".into()
+    } else if cable_limited {
+        "Cable-limited".into()
+    } else if let Some(w) = c.watts {
+        format!("{w} W")
+    } else {
+        "Charging".into()
+    };
 
     Some(VerdictCard {
         kind: CardKind::Charging,
@@ -280,6 +320,7 @@ fn charging_card(p: &Port) -> Option<VerdictCard> {
         title: "Charging".into(),
         text: String::new(),
         rows,
+        chip,
     })
 }
 
