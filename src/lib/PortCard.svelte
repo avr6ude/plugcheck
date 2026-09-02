@@ -120,8 +120,8 @@
       <button class="name" onclick={port.history ? startEdit : undefined} title="Rename">
         {displayName}
       </button>
+      {#if port.history}<span class="edit" aria-hidden="true">✎</span>{/if}
     {/if}
-    <span class="kind">{port.kind}</span>
   </div>
 
   {#if port.history && !editing}
@@ -234,6 +234,15 @@
   .name:hover {
     text-decoration: underline dotted;
   }
+  .edit {
+    color: var(--muted);
+    font-size: 0.75rem;
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+  .hd:hover .edit {
+    opacity: 1;
+  }
   .rename {
     font: 600 0.98rem/1.2 inherit;
     color: var(--fg);
@@ -243,11 +252,6 @@
     padding: 0.15rem 0.4rem;
     flex: 1;
     min-width: 0;
-  }
-  .kind {
-    margin-left: auto;
-    color: var(--muted);
-    font: 0.72rem/1 ui-monospace, monospace;
   }
   .sub {
     padding: 0 0.9rem 0.6rem;
