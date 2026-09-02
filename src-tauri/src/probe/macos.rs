@@ -14,7 +14,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use plist::Value;
 
 use crate::emarker;
-use crate::model::{CableType, Charger, EmarkerInfo, Port, ProbeError, Snapshot, Transport};
+use crate::model::{
+    CableType, Charger, DeviceNode, EmarkerInfo, Port, ProbeError, Snapshot, Transport,
+};
 
 /// IOKit keys, observed on macOS 26.6.2 (25G83) / Apple Silicon.
 mod keys {
@@ -57,7 +59,7 @@ impl super::UsbProbe for MacosProbe {
 
 impl MacosProbe {
     /// Pure: the two command outputs → a `Snapshot`. Testable off-device.
-    pub fn parse_snapshot(ioreg_plist: &str, _sp_json: &str) -> Result<Snapshot, ProbeError> {
+    pub fn parse_snapshot(ioreg_plist: &str, sp_json: &str) -> Result<Snapshot, ProbeError> {
         let root = Value::from_reader_xml(Cursor::new(ioreg_plist.as_bytes()))
             .map_err(|e| ProbeError::ParseFailed(format!("ioreg plist: {e}")))?;
 
@@ -73,6 +75,11 @@ impl MacosProbe {
             ports.push(port_from_node(dict));
         }
 
+        // system_profiler is best-effort: bad JSON just means no device tree.
+        if let Ok(sp) = serde_json::from_str::<serde_json::Value>(sp_json) {
+            attach_devices(&mut ports, &sp);
+        }
+
         Ok(Snapshot {
             ports,
             captured_ms: SystemTime::now()
@@ -80,6 +87,115 @@ impl MacosProbe {
                 .map(|d| d.as_millis() as u64)
                 .unwrap_or(0),
         })
+    }
+}
+
+/// Nest USB + Thunderbolt devices under the port they hang off.
+///
+/// ponytail: port linkage is coarse — USB `location_id` and the ioreg port
+/// nodes don't share an obvious key on this hardware, so USB devices go under
+/// the sole occupied port (the common laptop-with-one-dock case) or, failing
+/// that, the first port. Thunderbolt devices link cleanly by receptacle id.
+/// Upgrade path: match `location_id` high byte to a port once an occupied
+/// capture shows the mapping.
+fn attach_devices(ports: &mut [Port], sp: &serde_json::Value) {
+    let usb: Vec<DeviceNode> = sp
+        .get("SPUSBDataType")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().map(usb_node).collect())
+        .unwrap_or_default();
+
+    if !usb.is_empty() {
+        let idx = ports
+            .iter()
+            .position(|p| p.occupied)
+            .or(if ports.is_empty() { None } else { Some(0) });
+        if let Some(i) = idx {
+            ports[i].devices.extend(usb);
+        }
+    }
+
+    // Thunderbolt: one bus entry per receptacle; a connected device sits in
+    // `_items` and links by `receptacle_id_key` == port number.
+    if let Some(buses) = sp.get("SPThunderboltDataType").and_then(|v| v.as_array()) {
+        for bus in buses {
+            let recpt = bus
+                .get("receptacle_1_tag")
+                .and_then(|r| r.get("receptacle_id_key"))
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<u64>().ok());
+            let items = bus.get("_items").and_then(|v| v.as_array());
+            let Some(items) = items else { continue };
+            let devs: Vec<DeviceNode> = items.iter().map(tb_node).collect();
+            if devs.is_empty() {
+                continue;
+            }
+            let target = ports
+                .iter()
+                .position(|p| port_number(&p.id) == recpt)
+                .or_else(|| ports.iter().position(|p| p.occupied))
+                .or(if ports.is_empty() { None } else { Some(0) });
+            if let Some(i) = target {
+                ports[i].devices.extend(devs);
+            }
+        }
+    }
+}
+
+fn port_number(id: &str) -> Option<u64> {
+    id.rsplit('@').next().and_then(|s| s.parse().ok())
+}
+
+fn usb_node(v: &serde_json::Value) -> DeviceNode {
+    let name = v.get("_name").and_then(|x| x.as_str()).unwrap_or("USB device");
+    let children: Vec<DeviceNode> = v
+        .get("_items")
+        .and_then(|x| x.as_array())
+        .map(|a| a.iter().map(usb_node).collect())
+        .unwrap_or_default();
+    DeviceNode {
+        name: name.to_string(),
+        vendor: v
+            .get("manufacturer")
+            .and_then(|x| x.as_str())
+            .map(str::to_string),
+        speed: v
+            .get("speed")
+            .and_then(|x| x.as_str())
+            .map(emarker::speed_str_to_transport)
+            .unwrap_or(Transport::None),
+        is_hub: name.to_lowercase().contains("hub") || !children.is_empty(),
+        children,
+    }
+}
+
+fn tb_node(v: &serde_json::Value) -> DeviceNode {
+    let name = v
+        .get("_name")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Thunderbolt device");
+    let speed = v
+        .get("current_speed_key")
+        .and_then(|x| x.as_str())
+        .map(emarker::speed_str_to_transport)
+        .unwrap_or(Transport::Thunderbolt4);
+    DeviceNode {
+        name: name.to_string(),
+        vendor: v
+            .get("vendor_name_key")
+            .and_then(|x| x.as_str())
+            .map(str::to_string),
+        speed: if speed == Transport::Usb4Gen4 {
+            Transport::Thunderbolt4
+        } else {
+            speed
+        },
+        is_hub: false,
+        children: v
+            .get("_items")
+            .and_then(|x| x.as_array())
+            .map(|a| a.iter().map(tb_node).collect())
+            .unwrap_or_default(),
     }
 }
 
@@ -305,5 +421,47 @@ mod tests {
             MacosProbe::parse_snapshot("not a plist", SP),
             Err(ProbeError::ParseFailed(_))
         ));
+    }
+
+    #[test]
+    fn baseline_has_no_devices() {
+        let snap = MacosProbe::parse_snapshot(IOREG, SP).unwrap();
+        assert!(snap.ports.iter().all(|p| p.devices.is_empty()));
+    }
+
+    #[test]
+    fn nests_usb_devices_under_a_port() {
+        let sp = r#"{
+          "SPUSBDataType": [
+            { "_name": "USB3.0 Hub", "location_id": "0x02100000 / 1",
+              "_items": [
+                { "_name": "Portable SSD", "speed": "up_to_10_Gb_s", "manufacturer": "SanDisk" }
+              ] }
+          ],
+          "SPThunderboltDataType": []
+        }"#;
+        let snap = MacosProbe::parse_snapshot(IOREG, sp).unwrap();
+        let total: usize = snap
+            .ports
+            .iter()
+            .flat_map(|p| p.devices.iter())
+            .map(count)
+            .sum();
+        assert_eq!(total, 2, "hub + child");
+
+        let hub = snap
+            .ports
+            .iter()
+            .flat_map(|p| p.devices.iter())
+            .find(|d| d.name == "USB3.0 Hub")
+            .unwrap();
+        assert!(hub.is_hub);
+        assert_eq!(hub.children[0].name, "Portable SSD");
+        assert_eq!(hub.children[0].speed, Transport::Usb3Gen2);
+        assert_eq!(hub.children[0].vendor.as_deref(), Some("SanDisk"));
+    }
+
+    fn count(d: &DeviceNode) -> usize {
+        1 + d.children.iter().map(count).sum::<usize>()
     }
 }
