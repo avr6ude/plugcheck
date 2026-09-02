@@ -1,156 +1,109 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from "svelte";
+  import { store, startPolling, refresh, verdictFor } from "$lib/snapshot.svelte";
+  import PortCard from "$lib/PortCard.svelte";
+  import EngineerPanel from "$lib/EngineerPanel.svelte";
 
-  let name = $state("");
-  let greetMsg = $state("");
+  let engineerPort = $state<string | null>(null);
 
-  async function greet(event: Event) {
-    event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsg = await invoke("greet", { name });
-  }
+  onMount(() => {
+    let unlisten: (() => void) | undefined;
+    startPolling().then((u) => (unlisten = u));
+    return () => unlisten?.();
+  });
 </script>
 
-<main class="container">
-  <h1>Welcome to Tauri + Svelte</h1>
+<main>
+  <header>
+    <h1>plugcheck</h1>
+    <button onclick={refresh} disabled={store.loading}>
+      {store.loading ? "…" : "Refresh"}
+    </button>
+  </header>
 
-  <div class="row">
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-    </a>
-    <a href="https://tauri.app" target="_blank">
-      <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank">
-      <img src="/svelte.svg" class="logo svelte-kit" alt="SvelteKit Logo" />
-    </a>
-  </div>
-  <p>Click on the Tauri, Vite, and SvelteKit logos to learn more.</p>
+  {#if store.error}
+    <p class="err">{store.error}</p>
+  {:else if store.snapshot}
+    <div class="cards">
+      {#each store.snapshot.ports as port (port.id)}
+        <PortCard
+          {port}
+          verdict={verdictFor(port.id)}
+          onEngineer={(id) => (engineerPort = id)}
+        />
+      {/each}
+    </div>
+  {:else}
+    <p class="muted">Reading ports…</p>
+  {/if}
 
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
+  {#if engineerPort}
+    <EngineerPanel portId={engineerPort} onClose={() => (engineerPort = null)} />
+  {/if}
 </main>
 
 <style>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.svelte-kit:hover {
-  filter: drop-shadow(0 0 2em #ff3e00);
-}
-
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
+  :global(:root) {
+    --bg: #fbfbfa;
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+    --card: #ffffff;
+    --line: #e2e2e0;
   }
-
-  a:hover {
-    color: #24c8db;
+  @media (prefers-color-scheme: dark) {
+    :global(:root) {
+      --bg: #1c1c1e;
+      --fg: #f2f2f2;
+      --muted: #9a9a9a;
+      --card: #262628;
+      --line: #3a3a3c;
+    }
   }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
+  :global(body) {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.5 -apple-system, system-ui, sans-serif;
   }
-  button:active {
-    background-color: #0f0f0f69;
+  main {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 1rem;
   }
-}
-
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+  h1 {
+    margin: 0;
+    font-size: 1.3rem;
+  }
+  header button {
+    font-size: 0.8rem;
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--card);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  header button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .err {
+    color: #cf222e;
+    font-family: ui-monospace, monospace;
+    font-size: 0.85rem;
+  }
+  .muted {
+    color: var(--muted);
+  }
 </style>
