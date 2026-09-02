@@ -45,15 +45,21 @@
             <path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </button>
-        <span class="name">{n.name}</span>
-        {#if collapsible && !open[key]}
-          <span class="count">{subtreeCount(n)} device{subtreeCount(n) === 1 ? "" : "s"}</span>
-        {/if}
-        {#if n.class}<span class="tag">{n.class}</span>{/if}
-        {#if n.vendor}<span class="dim">{n.vendor}</span>{/if}
-        {#if n.usb_version}<span class="dim">{n.usb_version}</span>{/if}
-        {#if n.vid_pid}<span class="mono">{n.vid_pid}</span>{/if}
-        {#if speedLabel(n.speed)}<span class="speed">{speedLabel(n.speed)}</span>{/if}
+        <div class="info">
+          <div class="line1">
+            <span class="name">{n.name}</span>
+            {#if collapsible && !open[key]}
+              <span class="count">· {subtreeCount(n)} device{subtreeCount(n) === 1 ? "" : "s"}</span>
+            {/if}
+            {#if speedLabel(n.speed)}<span class="speed">{speedLabel(n.speed)}</span>{/if}
+          </div>
+          <div class="line2">
+            {#if n.class}{n.class}{/if}
+            {#if n.vendor}{n.class ? " · " : ""}{n.vendor}{/if}
+            {#if n.usb_version}{" · " + n.usb_version}{/if}
+            {#if n.vid_pid}<span class="mono"> · {n.vid_pid}</span>{/if}
+          </div>
+        </div>
       </div>
       {#if hasKids && (open[key] || !n.is_hub)}
         <Self nodes={n.children} depth={depth + 1} />
@@ -78,10 +84,9 @@
   }
   .row {
     display: flex;
-    align-items: baseline;
-    gap: 0.4rem;
-    font-size: 0.84rem;
-    line-height: 1.75;
+    align-items: flex-start;
+    gap: 0.35rem;
+    padding: 0.2rem 0;
   }
   .caret {
     width: 0.9rem;
@@ -89,9 +94,9 @@
     background: none;
     border: 0;
     padding: 0;
+    margin-top: 0.15rem;
     color: var(--muted);
     cursor: pointer;
-    align-self: center;
     display: grid;
     place-items: center;
     transition: transform 0.12s ease;
@@ -103,29 +108,36 @@
     visibility: hidden;
     cursor: default;
   }
+  .info {
+    min-width: 0;
+    flex: 1;
+  }
+  .line1 {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    font-size: 0.84rem;
+  }
   .name {
     font-weight: 500;
   }
-  .count,
-  .dim,
-  .speed,
-  .mono {
+  .count {
     color: var(--muted);
     font-size: 0.76rem;
   }
-  .mono {
-    font-family: ui-monospace, monospace;
-    font-size: 0.72rem;
-  }
-  .tag {
-    font-size: 0.68rem;
-    padding: 0.02rem 0.32rem;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    color: var(--muted);
-  }
   .speed {
     margin-left: auto;
+    color: var(--muted);
+    font-size: 0.76rem;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .line2 {
+    color: var(--muted);
+    font-size: 0.72rem;
+    line-height: 1.4;
+  }
+  .mono {
+    font-family: ui-monospace, monospace;
   }
 </style>

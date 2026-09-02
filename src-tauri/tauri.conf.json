@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "plugcheck",
-        "width": 520,
-        "height": 720,
+        "width": 760,
+        "height": 820,
         "resizable": true
       }
     ],

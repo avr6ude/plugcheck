@@ -118,7 +118,7 @@
       sans-serif;
   }
   main {
-    max-width: 560px;
+    max-width: 720px;
     margin: 0 auto;
     padding: 1.1rem 1.1rem 2rem;
   }
