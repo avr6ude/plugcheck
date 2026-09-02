@@ -37,7 +37,27 @@ pub struct VerdictCard {
     pub kind: CardKind,
     pub status: CardStatus,
     pub title: String,
+    /// One-line prose. Empty when `rows` carries the content instead.
     pub text: String,
+    /// Structured label/value rows (used by Charging and Display).
+    #[serde(default)]
+    pub rows: Vec<[String; 2]>,
+}
+
+impl VerdictCard {
+    fn prose(kind: CardKind, status: CardStatus, title: &str, text: String) -> Self {
+        VerdictCard {
+            kind,
+            status,
+            title: title.into(),
+            text,
+            rows: vec![],
+        }
+    }
+}
+
+fn row(k: &str, v: impl Into<String>) -> [String; 2] {
+    [k.to_string(), v.into()]
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -110,101 +130,157 @@ fn cards(p: &Port) -> Vec<VerdictCard> {
             "optical" => text.push_str(" Optical cable."),
             _ => {}
         }
-        // DisplayPort negotiated on the port but no video flowing.
         if p.provisioned.iter().any(|t| t == "DisplayPort") && !p.dp_alt {
-            text.push_str(" DisplayPort is negotiated but no display is active.");
+            text.push_str(" DisplayPort negotiated but no display is active.");
         }
-        out.push(VerdictCard {
-            kind: CardKind::Port,
-            status: CardStatus::Idle,
-            title: "Port".into(),
+        out.push(VerdictCard::prose(
+            CardKind::Port,
+            CardStatus::Idle,
+            "Port",
             text,
-        });
+        ));
     }
 
     if !dp_only {
-        out.push(VerdictCard {
-            kind: CardKind::Data,
-            status: blame_status(data_blame),
-            title: "Data speed".into(),
-            text: data_line,
-        });
+        out.push(VerdictCard::prose(
+            CardKind::Data,
+            blame_status(data_blame),
+            "Data speed",
+            data_line,
+        ));
     }
 
     if p.dp_alt || p.display.is_some() {
-        let mut status = CardStatus::Ok;
-        let mut text = match &p.display {
-            Some(d) => {
-                let mut t = format!("Driving {}", d.name);
-                match (&d.pixels, d.hz) {
-                    (Some(px), Some(hz)) => {
-                        t.push_str(&format!(" at {} @ {hz} Hz", px.replace(" x ", " × ")))
-                    }
-                    (Some(px), None) => t.push_str(&format!(" at {}", px.replace(" x ", " × "))),
-                    _ => {}
-                }
-                let mut extra: Vec<String> = Vec::new();
-                if let Some(c) = &d.connection {
-                    extra.push(format!("over {c}"));
-                }
-                if d.hdr {
-                    extra.push("HDR".into());
-                }
-                if d.mirrored {
-                    extra.push("mirrored".into());
-                }
-                if !extra.is_empty() {
-                    t.push_str(&format!(" ({})", extra.join(", ")));
-                }
-                t.push('.');
-                if d.degraded {
-                    status = CardStatus::Warn;
-                    if let Some(nat) = &d.native_pixels {
-                        t.push_str(&format!(
-                            " Below the panel's native {}.",
-                            nat.replace(" x ", " × ")
-                        ));
-                    } else {
-                        t.push_str(" Running below native resolution.");
-                    }
-                }
-                t
-            }
-            None => "DisplayPort video is active.".into(),
-        };
-        if dp_only {
-            text.push_str(" USB data runs at USB 2.0, which is normal for a video adapter.");
-        }
-        out.push(VerdictCard {
-            kind: CardKind::Display,
-            status,
-            title: "Display".into(),
-            text,
-        });
+        out.push(display_card(p, dp_only));
     }
 
-    if let Some(line) = charging_line(p) {
-        let status = if line.contains("limits") || line.contains("unavailable") {
-            CardStatus::Warn
-        } else {
-            CardStatus::Ok
-        };
-        out.push(VerdictCard {
-            kind: CardKind::Charging,
-            status,
-            title: "Charging".into(),
-            text: line,
-        });
+    if let Some(c) = charging_card(p) {
+        out.push(c);
     }
 
-    out.push(VerdictCard {
-        kind: CardKind::Cable,
-        status: CardStatus::Idle,
-        title: "Cable".into(),
-        text: cable_text(p),
-    });
+    out.push(VerdictCard::prose(
+        CardKind::Cable,
+        CardStatus::Idle,
+        "Cable",
+        cable_text(p),
+    ));
 
     out
+}
+
+fn display_card(p: &Port, dp_only: bool) -> VerdictCard {
+    let Some(d) = &p.display else {
+        let text = if dp_only {
+            "DisplayPort video is active. USB data is USB 2.0 — normal for a video adapter.".into()
+        } else {
+            "DisplayPort video is active.".into()
+        };
+        return VerdictCard::prose(CardKind::Display, CardStatus::Ok, "Display", text);
+    };
+
+    let mut rows = Vec::new();
+    rows.push(row("Monitor", d.name.clone()));
+    match (&d.pixels, d.hz) {
+        (Some(px), Some(hz)) => rows.push(row(
+            "Resolution",
+            format!("{} @ {hz} Hz", px.replace(" x ", " × ")),
+        )),
+        (Some(px), None) => rows.push(row("Resolution", px.replace(" x ", " × "))),
+        _ => {}
+    }
+    if let Some(c) = &d.connection {
+        rows.push(row("Link", c.clone()));
+    }
+    if let Some(dep) = &d.depth {
+        // "30-Bit Color (ARGB2101010)" -> "30-bit"
+        let short = dep
+            .split_whitespace()
+            .next()
+            .map(|s| s.to_lowercase())
+            .unwrap_or_else(|| dep.clone());
+        rows.push(row("Colour", short));
+    }
+    if d.hdr {
+        rows.push(row("HDR", "Yes"));
+    }
+    if d.mirrored {
+        rows.push(row("Mode", "Mirrored"));
+    }
+
+    let status = if d.degraded {
+        if let Some(nat) = &d.native_pixels {
+            rows.push(row("Native", nat.replace(" x ", " × ")));
+        }
+        CardStatus::Warn
+    } else {
+        CardStatus::Ok
+    };
+
+    VerdictCard {
+        kind: CardKind::Display,
+        status,
+        title: "Display".into(),
+        text: if dp_only {
+            "USB data is USB 2.0 — normal for a video adapter.".into()
+        } else {
+            String::new()
+        },
+        rows,
+    }
+}
+
+fn charging_card(p: &Port) -> Option<VerdictCard> {
+    let c = p.charger.as_ref()?;
+    let mut rows = Vec::new();
+    let mut status = CardStatus::Ok;
+
+    if c.fully_charged || !c.is_charging {
+        if let Some(w) = c.watts {
+            let vi = match (c.negotiated_volts, c.negotiated_amps) {
+                (Some(v), Some(a)) => format!(" ({v:.0} V / {a:.1} A)"),
+                _ => String::new(),
+            };
+            rows.push(row("Adapter", format!("{w} W{vi}")));
+        }
+        rows.push(row("Status", "Battery full — not drawing power"));
+    } else {
+        match (c.watts, c.negotiated_volts, c.negotiated_amps) {
+            (Some(w), Some(v), Some(a)) => {
+                rows.push(row("Power", format!("{w} W ({v:.0} V / {a:.1} A)")))
+            }
+            (Some(w), _, _) => rows.push(row("Power", format!("{w} W"))),
+            (None, Some(v), Some(a)) => {
+                rows.push(row("Power", format!("~{:.0} W ({v:.0} V / {a:.1} A)", v * a)))
+            }
+            _ => {
+                rows.push(row("Power", "wattage unavailable"));
+                status = CardStatus::Warn;
+            }
+        }
+        if let Some(lw) = c.live_watts {
+            rows.push(row("Now", format!("{lw:.0} W to battery")));
+        }
+        if let Some(pct) = c.battery_percent {
+            let v = match c.minutes_to_full {
+                Some(m) => format!("{pct}% · full in {}", fmt_minutes(m)),
+                None => format!("{pct}%"),
+            };
+            rows.push(row("Battery", v));
+        }
+    }
+
+    if p.emarker.current_amps == Some(3) && c.watts.map_or(true, |w| w > 60) {
+        rows.push(row("Cable limit", "~60 W (3 A cable)"));
+        status = CardStatus::Warn;
+    }
+
+    Some(VerdictCard {
+        kind: CardKind::Charging,
+        status,
+        title: "Charging".into(),
+        text: String::new(),
+        rows,
+    })
 }
 
 fn fastest_device(p: &Port) -> Transport {

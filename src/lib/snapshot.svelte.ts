@@ -89,6 +89,7 @@ export interface VerdictCard {
   status: CardStatus;
   title: string;
   text: string;
+  rows: [string, string][];
 }
 export interface PortVerdict {
   port_id: string;

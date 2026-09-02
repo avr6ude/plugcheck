@@ -60,18 +60,21 @@
     <p class="err">{store.error}</p>
   {:else if store.snapshot}
     <div class="list">
-      {#each shown as port (port.id)}
+      {#each shown as port, i (port.id)}
         {#if port.occupied}
-          <PortCard
-            {port}
-            verdict={verdictFor(port.id)}
-            onEngineer={(id) => (engineerPort = id)}
-          />
+          <div class="slot">
+            <div class="slot-label">{port.kind} · Port {i + 1}</div>
+            <PortCard
+              {port}
+              verdict={verdictFor(port.id)}
+              onEngineer={(id) => (engineerPort = id)}
+            />
+          </div>
         {:else}
           <button class="empty-row" onclick={() => (engineerPort = port.id)}>
             <span class="pip"></span>
             <span class="lbl">{port.kind}</span>
-            <span class="tag">empty</span>
+            <span class="tag">Empty</span>
           </button>
         {/if}
       {/each}
@@ -91,27 +94,29 @@
 
 <style>
   :global(:root) {
-    --bg: #fbfbfa;
-    --fg: #1a1a1a;
-    --muted: #6b6b6b;
+    --bg: #f2f2f7;
+    --fg: #1c1c1e;
+    --muted: #8a8a8e;
     --card: #ffffff;
-    --line: #e7e7e4;
-    --ok: #2ea043;
-    --warn: #bf8700;
-    --warn-fg: #8a6300;
-    --bad: #cf222e;
+    --line: #d8d8dc;
+    --accent: #0a84ff;
+    --ok: #34c759;
+    --warn: #ff9f0a;
+    --warn-fg: #a8690a;
+    --bad: #ff3b30;
   }
   @media (prefers-color-scheme: dark) {
     :global(:root) {
-      --bg: #1b1b1d;
-      --fg: #f0f0f0;
-      --muted: #9a9a9a;
-      --card: #262629;
-      --line: #38383b;
-      --ok: #3fb950;
-      --warn: #d29922;
-      --warn-fg: #e3b341;
-      --bad: #f85149;
+      --bg: #1c1c1e;
+      --fg: #f2f2f7;
+      --muted: #8e8e93;
+      --card: #2c2c2e;
+      --line: #3a3a3c;
+      --accent: #0a84ff;
+      --ok: #30d158;
+      --warn: #ff9f0a;
+      --warn-fg: #ffd60a;
+      --bad: #ff453a;
     }
   }
   :global(body) {
@@ -122,11 +127,12 @@
       13px/1.5 -apple-system,
       system-ui,
       sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
   main {
-    max-width: 720px;
+    max-width: 660px;
     margin: 0 auto;
-    padding: 1.1rem 1.1rem 2rem;
+    padding: 1.2rem 1.2rem 2.5rem;
   }
   header {
     display: flex;
@@ -174,7 +180,15 @@
   .list {
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
+    gap: 1.1rem;
+  }
+  .slot-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 0.35rem 0.9rem;
   }
   .empty-row {
     display: flex;
@@ -182,10 +196,10 @@
     gap: 0.6rem;
     width: 100%;
     text-align: left;
-    padding: 0.6rem 0.8rem;
-    border: 1px dashed var(--line);
-    border-radius: 10px;
-    background: none;
+    padding: 0.7rem 0.9rem;
+    border: 0.5px solid var(--line);
+    border-radius: 12px;
+    background: var(--card);
     color: var(--muted);
     font-size: 0.82rem;
     cursor: pointer;
@@ -202,8 +216,6 @@
   .empty-row .tag {
     margin-left: auto;
     font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
   }
   .err {
     color: var(--bad);
