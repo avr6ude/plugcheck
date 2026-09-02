@@ -13,18 +13,140 @@ pub enum Blame {
     None,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CardKind {
+    Data,
+    Charging,
+    Display,
+    Cable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CardStatus {
+    Ok,
+    Warn,
+    Bad,
+    Idle,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct VerdictCard {
+    pub kind: CardKind,
+    pub status: CardStatus,
+    pub title: String,
+    pub text: String,
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PortVerdict {
     pub port_id: String,
     pub headline: String,
+    /// Verdict cards, in display order (data, charging, display, cable).
+    pub cards: Vec<VerdictCard>,
+    pub trust_flags: Vec<String>,
+    // legacy flat fields, kept for tests / any older caller
     pub data_line: String,
     pub data_blame: Blame,
     pub charging_line: Option<String>,
-    pub trust_flags: Vec<String>,
 }
 
 pub fn verdicts(snap: &Snapshot) -> Vec<PortVerdict> {
     snap.ports.iter().map(one).collect()
+}
+
+fn blame_status(b: Blame) -> CardStatus {
+    match b {
+        Blame::None => CardStatus::Ok,
+        Blame::Cable | Blame::Port => CardStatus::Bad,
+        Blame::Device => CardStatus::Warn,
+    }
+}
+
+fn cable_text(p: &Port) -> String {
+    let em = &p.emarker;
+    if !em.present {
+        return "No e-marker — cable capabilities unknown.".into();
+    }
+    let mut bits: Vec<String> = Vec::new();
+    if let Some(v) = &em.vendor_name {
+        bits.push(v.clone());
+    } else if let Some(id) = em.vendor_id {
+        bits.push(format!("VID {id:#06x}"));
+    }
+    bits.push(
+        match em.cable_type {
+            crate::model::CableType::Active => "active cable",
+            crate::model::CableType::Passive => "passive cable",
+            crate::model::CableType::Captive => "captive cable",
+            crate::model::CableType::Unknown => "cable",
+        }
+        .into(),
+    );
+    if let Some(w) = em.max_power_watts {
+        bits.push(format!("up to {w} W"));
+    }
+    if let Some(a) = em.current_amps {
+        bits.push(format!("{a} A"));
+    }
+    bits.join(" · ")
+}
+
+fn cards(p: &Port) -> Vec<VerdictCard> {
+    if !p.occupied {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    let (data_line, data_blame) = data(p);
+    let dev = fastest_device(p);
+    let dp_only = p.dp_alt && dev.rank() <= Transport::Usb2.rank();
+
+    if !dp_only {
+        out.push(VerdictCard {
+            kind: CardKind::Data,
+            status: blame_status(data_blame),
+            title: "Data speed".into(),
+            text: data_line,
+        });
+    }
+
+    if p.dp_alt {
+        let text = if dp_only {
+            "DisplayPort video is active. USB data runs at USB 2.0, which is normal for a video adapter.".into()
+        } else {
+            "DisplayPort video is active alongside USB data.".into()
+        };
+        out.push(VerdictCard {
+            kind: CardKind::Display,
+            status: CardStatus::Ok,
+            title: "Display".into(),
+            text,
+        });
+    }
+
+    if let Some(line) = charging_line(p) {
+        let status = if line.contains("limits") || line.contains("unavailable") {
+            CardStatus::Warn
+        } else {
+            CardStatus::Ok
+        };
+        out.push(VerdictCard {
+            kind: CardKind::Charging,
+            status,
+            title: "Charging".into(),
+            text: line,
+        });
+    }
+
+    out.push(VerdictCard {
+        kind: CardKind::Cable,
+        status: CardStatus::Idle,
+        title: "Cable".into(),
+        text: cable_text(p),
+    });
+
+    out
 }
 
 fn fastest_device(p: &Port) -> Transport {
@@ -153,10 +275,11 @@ fn one(p: &Port) -> PortVerdict {
     PortVerdict {
         port_id: p.id.clone(),
         headline: headline(p),
+        cards: cards(p),
+        trust_flags: trust_flags(p),
         data_line,
         data_blame,
         charging_line: charging_line(p),
-        trust_flags: trust_flags(p),
     }
 }
 
@@ -388,5 +511,59 @@ mod tests {
             .trust_flags
             .iter()
             .any(|f| f.contains("0x0000")));
+    }
+
+    #[test]
+    fn cards_cover_data_and_cable_for_a_plain_usb_device() {
+        let s = snap(
+            true,
+            Transport::Usb3Gen2,
+            vec![dev("SSD", Transport::Usb3Gen2)],
+            EmarkerInfo::default(),
+            None,
+        );
+        let kinds: Vec<CardKind> = verdicts(&s)[0].cards.iter().map(|c| c.kind).collect();
+        assert_eq!(kinds, vec![CardKind::Data, CardKind::Cable]);
+        assert_eq!(verdicts(&s)[0].cards[0].status, CardStatus::Ok);
+    }
+
+    #[test]
+    fn dp_adapter_gets_display_card_no_data_card() {
+        let s = snap_dp(
+            true,
+            Transport::Usb2,
+            true,
+            vec![dev("USB-C To DP Cable", Transport::Usb2)],
+            EmarkerInfo::default(),
+            None,
+        );
+        let kinds: Vec<CardKind> = verdicts(&s)[0].cards.iter().map(|c| c.kind).collect();
+        assert!(kinds.contains(&CardKind::Display));
+        assert!(!kinds.contains(&CardKind::Data));
+    }
+
+    #[test]
+    fn empty_port_has_no_cards() {
+        let s = snap(false, Transport::None, vec![], EmarkerInfo::default(), None);
+        assert!(verdicts(&s)[0].cards.is_empty());
+    }
+
+    #[test]
+    fn charger_adds_a_charging_card() {
+        let s = snap(
+            true,
+            Transport::None,
+            vec![],
+            EmarkerInfo::default(),
+            Some(Charger {
+                negotiated_volts: Some(20.0),
+                negotiated_amps: Some(4.5),
+                cable_current_limit_amps: Some(5),
+            }),
+        );
+        assert!(verdicts(&s)[0]
+            .cards
+            .iter()
+            .any(|c| c.kind == CardKind::Charging && c.status == CardStatus::Ok));
     }
 }

@@ -39,13 +39,22 @@ export interface Snapshot {
   captured_ms: number;
 }
 export type Blame = "port" | "cable" | "device" | "none";
+export type CardKind = "data" | "charging" | "display" | "cable";
+export type CardStatus = "ok" | "warn" | "bad" | "idle";
+export interface VerdictCard {
+  kind: CardKind;
+  status: CardStatus;
+  title: string;
+  text: string;
+}
 export interface PortVerdict {
   port_id: string;
   headline: string;
+  cards: VerdictCard[];
+  trust_flags: string[];
   data_line: string;
   data_blame: Blame;
   charging_line: string | null;
-  trust_flags: string[];
 }
 
 export const store = $state<{

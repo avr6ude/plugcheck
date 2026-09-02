@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Port, PortVerdict } from "./snapshot.svelte";
+  import type { Port, PortVerdict, CardStatus } from "./snapshot.svelte";
   import DeviceTree from "./DeviceTree.svelte";
 
   let {
@@ -12,135 +12,184 @@
     onEngineer: (id: string) => void;
   } = $props();
 
-  const dotClass = $derived(
-    verdict?.data_blame === "none"
-      ? "ok"
-      : verdict?.data_blame === "cable"
-        ? "warn"
-        : verdict
-          ? "bad"
-          : "idle",
+  const glyph: Record<CardStatus, string> = {
+    ok: "✓",
+    warn: "!",
+    bad: "✕",
+    idle: "·",
+  };
+
+  // Worst card status → the dot next to the headline.
+  const rank: Record<CardStatus, number> = { idle: 0, ok: 1, warn: 2, bad: 3 };
+  const worst = $derived(
+    (verdict?.cards ?? []).reduce<CardStatus>(
+      (w, c) => (rank[c.status] > rank[w] ? c.status : w),
+      "ok",
+    ),
   );
 
-  function emarkerSummary(): string {
-    const e = port.emarker;
-    if (!e.present) return "No e-marker";
-    const bits = [
-      e.vendor_name ?? (e.vendor_id != null ? `VID ${e.vendor_id}` : null),
-      e.cable_type !== "unknown" ? e.cable_type : null,
-      e.current_amps ? `${e.current_amps} A` : null,
-      e.max_power_watts ? `${e.max_power_watts} W` : null,
-    ].filter(Boolean);
-    return bits.length ? bits.join(" · ") : "E-marked cable";
+  function deviceCount(): number {
+    const walk = (n: Port["devices"]): number =>
+      n.reduce((a, d) => a + 1 + walk(d.children), 0);
+    return walk(port.devices);
   }
 </script>
 
-<article class="card" class:empty={!port.occupied}>
+<section class="port">
   <header>
+    <span class="pip {worst}"></span>
     <h2>{verdict?.headline ?? (port.occupied ? "Connected" : "Empty")}</h2>
-    <span class="port-id">{port.id}</span>
+    <span class="meta">{port.kind}</span>
   </header>
 
-  {#if port.occupied}
-    <p class="verdict">
-      <span class="dot {dotClass}"></span>
-      {verdict?.data_line ?? "…"}
-    </p>
+  {#each verdict?.cards ?? [] as card}
+    <div class="card {card.status}">
+      <span class="badge {card.status}">{glyph[card.status]}</span>
+      <div class="body">
+        <span class="title">{card.title}</span>
+        <p>{card.text}</p>
+      </div>
+    </div>
+  {/each}
 
-    {#if port.dp_alt}
-      <p class="video">🖥 DisplayPort video active</p>
-    {/if}
+  {#each verdict?.trust_flags ?? [] as flag}
+    <div class="card warn">
+      <span class="badge warn">!</span>
+      <div class="body">
+        <span class="title">Trust</span>
+        <p>{flag}</p>
+      </div>
+    </div>
+  {/each}
 
-    {#if verdict?.charging_line}
-      <p class="charging">⚡ {verdict.charging_line}</p>
-    {/if}
-
-    {#each verdict?.trust_flags ?? [] as flag}
-      <p class="trust">⚠ {flag}</p>
-    {/each}
-
-    <p class="emarker">{emarkerSummary()}</p>
-
-    {#if port.devices.length}
+  {#if port.devices.length}
+    <div class="devices">
+      <span class="dev-head">Connected devices ({deviceCount()})</span>
       <DeviceTree nodes={port.devices} />
-    {/if}
+    </div>
   {/if}
 
-  <button class="eng" onclick={() => onEngineer(port.id)}>Engineer</button>
-</article>
+  <button class="eng" onclick={() => onEngineer(port.id)}>Engineer view ›</button>
+</section>
 
 <style>
-  .card {
+  .port {
+    padding: 0.95rem 1rem 0.75rem;
     border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 0.9rem 1rem;
+    border-radius: 12px;
     background: var(--card);
-  }
-  .card.empty {
-    opacity: 0.55;
   }
   header {
     display: flex;
     align-items: baseline;
-    justify-content: space-between;
     gap: 0.5rem;
+    margin-bottom: 0.7rem;
+  }
+  .pip {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: none;
+    align-self: center;
   }
   h2 {
     margin: 0;
-    font-size: 1.05rem;
+    font-size: 0.98rem;
+    font-weight: 600;
   }
-  .port-id {
+  .meta {
+    margin-left: auto;
     color: var(--muted);
-    font-size: 0.75rem;
+    font-size: 0.74rem;
     font-family: ui-monospace, monospace;
   }
-  .verdict {
-    margin: 0.55rem 0 0.3rem;
-    font-size: 0.9rem;
+
+  .card {
+    display: flex;
+    gap: 0.6rem;
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--line);
   }
-  .dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
+  .card:first-of-type {
+    border-top: 0;
+  }
+  .badge {
+    flex: none;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
-    margin-right: 0.45rem;
-    vertical-align: middle;
+    display: grid;
+    place-items: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fff;
+    margin-top: 0.1rem;
   }
-  .dot.ok {
-    background: #2ea043;
+  .badge.ok {
+    background: var(--ok);
   }
-  .dot.warn {
-    background: #d29922;
+  .badge.warn {
+    background: var(--warn);
   }
-  .dot.bad {
-    background: #cf222e;
+  .badge.bad {
+    background: var(--bad);
   }
-  .dot.idle {
+  .badge.idle {
     background: var(--muted);
   }
-  .charging,
-  .video {
-    margin: 0.2rem 0;
-    font-size: 0.85rem;
+  .body {
+    min-width: 0;
   }
-  .trust {
-    margin: 0.2rem 0;
-    font-size: 0.82rem;
-    color: #d29922;
-  }
-  .emarker {
-    margin: 0.4rem 0 0;
-    font-size: 0.8rem;
+  .title {
+    display: block;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     color: var(--muted);
   }
+  .body p {
+    margin: 0.1rem 0 0;
+    font-size: 0.86rem;
+    line-height: 1.45;
+  }
+  .card.warn .body p {
+    color: var(--warn-fg);
+  }
+
+  .devices {
+    margin-top: 0.6rem;
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--line);
+  }
+  .dev-head {
+    display: block;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.35rem;
+  }
+
+  .pip.ok {
+    background: var(--ok);
+  }
+  .pip.warn {
+    background: var(--warn);
+  }
+  .pip.bad {
+    background: var(--bad);
+  }
+  .pip.idle {
+    background: var(--muted);
+  }
+
   .eng {
-    margin-top: 0.7rem;
-    font-size: 0.75rem;
-    padding: 0.25rem 0.6rem;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: transparent;
+    margin-top: 0.6rem;
+    background: none;
+    border: 0;
+    padding: 0.2rem 0;
     color: var(--muted);
+    font-size: 0.74rem;
     cursor: pointer;
   }
   .eng:hover {
