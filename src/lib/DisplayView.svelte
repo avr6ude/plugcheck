@@ -33,14 +33,12 @@
         <div><dt>HDR</dt><dd>{d.hdr ? "On" : "Off"}</dd></div>
         <div><dt>Role</dt><dd>{d.mirrored ? "Mirrored" : d.main ? "Main" : "Extended"}</dd></div>
       </dl>
-      <p class="verdict" class:warn={d.degraded}>
-        {#if d.degraded}
-          Running below native. The link or macOS is limiting it — try a different
-          cable/port or lower the refresh rate.
-        {:else}
-          Full quality{d.connection ? ` over ${d.connection}` : ""}.
-        {/if}
-      </p>
+      {#if d.degraded}
+        <p class="verdict warn">
+          Below native. Link or macOS is limiting it — try another cable/port or a
+          lower refresh rate.
+        </p>
+      {/if}
     </div>
   {/each}
 </div>

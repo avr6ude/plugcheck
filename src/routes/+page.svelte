@@ -17,13 +17,6 @@
   import SavedCables from "$lib/SavedCables.svelte";
 
   type View = "ports" | "power" | "negotiation" | "displays" | "cables";
-  const TITLE: Record<View, string> = {
-    ports: "USB-C & Thunderbolt inspector",
-    power: "Power monitor",
-    negotiation: "Negotiation diagnostics",
-    displays: "Display diagnostics",
-    cables: "Saved cables",
-  };
 
   let engineerPort = $state<string | null>(null);
   let showSettings = $state(false);
@@ -42,7 +35,6 @@
   const shown = $derived(
     settings.hide_empty ? ports.filter((p) => p.occupied) : ports,
   );
-  const emptyCount = $derived(ports.filter((p) => !p.occupied).length);
   const deviceCount = $derived(
     ports.reduce((a, p) => {
       const w = (ns: typeof p.devices): number =>
@@ -76,7 +68,6 @@
     /></svg>
   </button>
   <span class="wm">plugcheck</span>
-  <span class="sub">{TITLE[view]}</span>
   {#if store.loading}<span class="load">…</span>{/if}
 </div>
 
@@ -114,12 +105,6 @@
       {/each}
     </div>
   {/if}
-
-  <footer>
-    {deviceCount} USB device{deviceCount === 1 ? "" : "s"}
-    {#if emptyCount}· {emptyCount} empty port{emptyCount === 1 ? "" : "s"}{/if}
-    · {store.version} · plugcheck
-  </footer>
 
   {#if engineerPort}
     <EngineerPanel portId={engineerPort} onClose={() => (engineerPort = null)} />
@@ -190,10 +175,6 @@
     font-weight: 700;
     letter-spacing: -0.01em;
   }
-  .sub {
-    color: var(--muted);
-    font-size: 0.75rem;
-  }
   .load {
     margin-left: auto;
     color: var(--muted);
@@ -232,12 +213,6 @@
   }
   .empty-row .tag {
     margin-left: auto;
-    font-size: 0.72rem;
-  }
-  footer {
-    margin-top: 1.2rem;
-    text-align: center;
-    color: var(--muted);
     font-size: 0.72rem;
   }
   .err {

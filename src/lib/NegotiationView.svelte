@@ -74,8 +74,8 @@
       </table>
       <p class="verdict">
         {#if weak === "cable"}Cable is the weak link.
-        {:else if weak === "port"}The Mac port is negotiating low.
-        {:else}Running at the device's own maximum — nothing to fix.{/if}
+        {:else if weak === "port"}Mac port is negotiating low.
+        {:else}Device maximum — cable and port aren't limiting.{/if}
       </p>
     </div>
   {/each}
