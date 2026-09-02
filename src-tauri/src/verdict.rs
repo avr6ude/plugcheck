@@ -102,8 +102,11 @@ fn data(p: &Port) -> (String, Blame) {
         return ("No data device connected.".into(), Blame::None);
     }
     if active.rank() >= target {
+        // Report the device's actual speed when we have it — the port only
+        // reports a coarse "USB3" with no generation.
+        let shown = if dev.rank() > 0 { dev } else { active };
         return (
-            format!("Running at full speed ({}).", transport_label(active)),
+            format!("Running at full speed ({}).", transport_label(shown)),
             Blame::None,
         );
     }
