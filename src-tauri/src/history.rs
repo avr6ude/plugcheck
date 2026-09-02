@@ -53,19 +53,26 @@ fn today() -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
-/// A stable id for whatever is plugged into this port.
+/// A stable id for the cable / dock on this port.
+///
+/// Only the devices sitting *directly* on the port count — a dock or hub keeps
+/// its identity when you plug things into it. Serial numbers are folded in when
+/// present so two identical docks stay distinct.
 pub fn signature(p: &Port) -> Option<String> {
     if !p.occupied {
         return None;
     }
-    let mut ids: Vec<String> = Vec::new();
-    fn walk(d: &crate::model::DeviceNode, out: &mut Vec<String>) {
-        if let Some(v) = &d.vid_pid {
-            out.push(v.clone());
-        }
-        d.children.iter().for_each(|c| walk(c, out));
-    }
-    p.devices.iter().for_each(|d| walk(d, &mut ids));
+    let mut ids: Vec<String> = p
+        .devices
+        .iter()
+        .filter_map(|d| {
+            let vp = d.vid_pid.as_deref()?;
+            Some(match &d.serial {
+                Some(sn) => format!("{vp}~{sn}"),
+                None => vp.to_string(),
+            })
+        })
+        .collect();
     ids.sort();
     ids.dedup();
     if !ids.is_empty() {
