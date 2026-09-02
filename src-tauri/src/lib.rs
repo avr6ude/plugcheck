@@ -1,6 +1,7 @@
 pub mod emarker;
 pub mod model;
 pub mod probe;
+pub mod verdict;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

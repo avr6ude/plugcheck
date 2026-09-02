@@ -1,0 +1,328 @@
+//! Pure verdict logic: a [`Snapshot`] in, one plain-language verdict per port
+//! out. Never touches the OS. This is where "what's the bottleneck" lives.
+
+use crate::emarker::transport_label;
+use crate::model::{Port, Snapshot, Transport};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Blame {
+    Port,
+    Cable,
+    Device,
+    None,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PortVerdict {
+    pub port_id: String,
+    pub headline: String,
+    pub data_line: String,
+    pub data_blame: Blame,
+    pub charging_line: Option<String>,
+    pub trust_flags: Vec<String>,
+}
+
+pub fn verdicts(snap: &Snapshot) -> Vec<PortVerdict> {
+    snap.ports.iter().map(one).collect()
+}
+
+fn fastest_device(p: &Port) -> Transport {
+    fn deep(d: &crate::model::DeviceNode) -> Transport {
+        d.children
+            .iter()
+            .map(deep)
+            .chain(std::iter::once(d.speed))
+            .max_by_key(|t| t.rank())
+            .unwrap_or(Transport::None)
+    }
+    p.devices
+        .iter()
+        .map(deep)
+        .max_by_key(|t| t.rank())
+        .unwrap_or(Transport::None)
+}
+
+fn is_thunderbolt(t: Transport) -> bool {
+    matches!(t, Transport::Thunderbolt3 | Transport::Thunderbolt4)
+}
+
+fn headline(p: &Port) -> String {
+    if !p.occupied {
+        return "Empty".into();
+    }
+    let dev = fastest_device(p);
+    if is_thunderbolt(p.active_transport) || p.devices.iter().any(|d| is_thunderbolt(d.speed)) {
+        return if matches!(p.active_transport, Transport::Thunderbolt3) {
+            "Thunderbolt 3".into()
+        } else {
+            "Thunderbolt 4".into()
+        };
+    }
+    let looks_display = |n: &str| {
+        let n = n.to_lowercase();
+        n.contains("display") || n.contains("monitor") || n.contains("lg ultra")
+    };
+    if p.devices.iter().any(|d| looks_display(&d.name)) {
+        return "Display".into();
+    }
+    if dev.rank() > 0 || !p.devices.is_empty() {
+        return "USB device".into();
+    }
+    "Charging only".into()
+}
+
+fn data(p: &Port) -> (String, Blame) {
+    let active = p.active_transport;
+    let dev = fastest_device(p);
+    let em = &p.emarker;
+    let target = [dev.rank(), if em.present { em.max_speed.rank() } else { 0 }]
+        .into_iter()
+        .max()
+        .unwrap();
+
+    if active.rank() == 0 && dev.rank() == 0 {
+        return ("No data device connected.".into(), Blame::None);
+    }
+    if active.rank() >= target {
+        return (
+            format!("Running at full speed ({}).", transport_label(active)),
+            Blame::None,
+        );
+    }
+    if em.present && em.max_speed.rank() < dev.rank() && active == em.max_speed {
+        return (
+            format!(
+                "Cable caps this link at {}; the device supports {}.",
+                transport_label(em.max_speed),
+                transport_label(dev)
+            ),
+            Blame::Cable,
+        );
+    }
+    if !em.present && active == Transport::Usb2 && dev.rank() > Transport::Usb2.rank() {
+        return (
+            "Link fell back to USB 2.0 — likely a charge-only cable.".into(),
+            Blame::Cable,
+        );
+    }
+    if active.rank() < dev.rank() {
+        if em.present {
+            return (
+                "Port is negotiating below the cable and device capability.".into(),
+                Blame::Port,
+            );
+        }
+        return (
+            format!(
+                "Link is {} but the device can do {}.",
+                transport_label(active),
+                transport_label(dev)
+            ),
+            Blame::Cable,
+        );
+    }
+    (
+        format!("Limited by the device ({}).", transport_label(dev)),
+        Blame::Device,
+    )
+}
+
+fn one(p: &Port) -> PortVerdict {
+    let (data_line, data_blame) = data(p);
+    PortVerdict {
+        port_id: p.id.clone(),
+        headline: headline(p),
+        data_line,
+        data_blame,
+        charging_line: charging_line(p),
+        trust_flags: trust_flags(p),
+    }
+}
+
+// --- charging + trust (plan Task 8) ---
+
+fn charging_line(p: &Port) -> Option<String> {
+    let c = p.charger.as_ref()?;
+    if p.emarker.current_amps == Some(3) {
+        return Some("Cable limits charging to ~60 W (3 A cable).".into());
+    }
+    match (c.negotiated_volts, c.negotiated_amps) {
+        (Some(v), Some(a)) => Some(format!("Charging at {:.0} W ({v:.0} V / {a:.1} A).", v * a)),
+        (None, Some(a)) => Some(format!("Charging (~{a:.1} A, voltage unavailable).")),
+        _ => Some("Charging (wattage unavailable).".into()),
+    }
+}
+
+fn trust_flags(p: &Port) -> Vec<String> {
+    let mut out = Vec::new();
+    let em = &p.emarker;
+    if em.present && em.vendor_id == Some(0) {
+        out.push("E-marker vendor ID is 0x0000 (not registered with USB-IF).".into());
+    }
+    if em.current_amps == Some(5) && em.max_speed == Transport::Usb2 {
+        out.push("Cable claims 5 A but the link is only USB 2.0.".into());
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{CableType, Charger, DeviceNode, EmarkerInfo, Snapshot};
+
+    fn dev(name: &str, speed: Transport) -> DeviceNode {
+        DeviceNode {
+            name: name.into(),
+            vendor: None,
+            speed,
+            is_hub: false,
+            children: vec![],
+        }
+    }
+
+    fn snap(
+        occupied: bool,
+        active: Transport,
+        devices: Vec<DeviceNode>,
+        emarker: EmarkerInfo,
+        charger: Option<Charger>,
+    ) -> Snapshot {
+        Snapshot {
+            captured_ms: 0,
+            ports: vec![Port {
+                id: "Port-USB-C@1".into(),
+                kind: "USB-C".into(),
+                occupied,
+                orientation: Some(1),
+                active_transport: active,
+                emarker,
+                charger,
+                devices,
+                raw: Default::default(),
+            }],
+        }
+    }
+
+    fn em(vid: Option<u16>, max: Transport, amps: Option<u8>) -> EmarkerInfo {
+        EmarkerInfo {
+            vendor_id: vid,
+            vendor_name: None,
+            cable_type: CableType::Passive,
+            max_speed: max,
+            current_amps: amps,
+            max_power_watts: amps.and_then(crate::emarker::cable_watts),
+            present: true,
+        }
+    }
+
+    #[test]
+    fn tb4_good_is_full_speed_no_blame() {
+        let s = snap(
+            true,
+            Transport::Thunderbolt4,
+            vec![dev("CalDigit TS4", Transport::Thunderbolt4)],
+            EmarkerInfo::default(),
+            None,
+        );
+        let v = &verdicts(&s)[0];
+        assert_eq!(v.headline, "Thunderbolt 4");
+        assert_eq!(v.data_blame, Blame::None);
+        assert!(v.data_line.contains("full speed"));
+    }
+
+    #[test]
+    fn no_emarker_usb2_fallback_blames_cable() {
+        let s = snap(
+            true,
+            Transport::Usb2,
+            vec![dev("Portable SSD", Transport::Usb3Gen2)],
+            EmarkerInfo::default(),
+            None,
+        );
+        let v = &verdicts(&s)[0];
+        assert_eq!(v.data_blame, Blame::Cable);
+        assert!(v.data_line.contains("charge-only cable"));
+    }
+
+    #[test]
+    fn charge_only_headline_when_no_devices() {
+        let s = snap(true, Transport::None, vec![], EmarkerInfo::default(), None);
+        let v = &verdicts(&s)[0];
+        assert_eq!(v.headline, "Charging only");
+        assert_eq!(v.data_blame, Blame::None);
+    }
+
+    #[test]
+    fn empty_port_headline() {
+        let s = snap(false, Transport::None, vec![], EmarkerInfo::default(), None);
+        assert_eq!(verdicts(&s)[0].headline, "Empty");
+    }
+
+    #[test]
+    fn emarker_mismatch_blames_cable_and_flags_trust() {
+        let s = snap(
+            true,
+            Transport::Usb2,
+            vec![dev("NVMe", Transport::Usb3Gen2)],
+            em(Some(1452), Transport::Usb2, Some(5)),
+            None,
+        );
+        let v = &verdicts(&s)[0];
+        assert_eq!(v.data_blame, Blame::Cable);
+        assert!(v.data_line.contains("Cable caps"));
+        assert!(v
+            .trust_flags
+            .iter()
+            .any(|f| f.contains("5 A") && f.contains("USB 2.0")));
+    }
+
+    #[test]
+    fn charging_line_names_the_3a_cable() {
+        let s = snap(
+            true,
+            Transport::None,
+            vec![],
+            em(None, Transport::None, Some(3)),
+            Some(Charger {
+                negotiated_volts: Some(20.0),
+                negotiated_amps: Some(5.0),
+                cable_current_limit_amps: Some(3),
+            }),
+        );
+        let line = verdicts(&s)[0].charging_line.clone().unwrap();
+        assert!(line.contains("3 A cable"), "got: {line}");
+    }
+
+    #[test]
+    fn charging_line_reports_watts() {
+        let s = snap(
+            true,
+            Transport::None,
+            vec![],
+            EmarkerInfo::default(),
+            Some(Charger {
+                negotiated_volts: Some(20.0),
+                negotiated_amps: Some(4.5),
+                cable_current_limit_amps: Some(5),
+            }),
+        );
+        let line = verdicts(&s)[0].charging_line.clone().unwrap();
+        assert!(line.contains("90 W"), "got: {line}");
+    }
+
+    #[test]
+    fn trust_flag_on_zero_vid() {
+        let s = snap(
+            true,
+            Transport::None,
+            vec![],
+            em(Some(0), Transport::None, Some(3)),
+            None,
+        );
+        assert!(verdicts(&s)[0]
+            .trust_flags
+            .iter()
+            .any(|f| f.contains("0x0000")));
+    }
+}
