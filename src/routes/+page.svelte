@@ -94,40 +94,42 @@
 
 <style>
   :global(:root) {
-    --bg: #f2f2f7;
-    --fg: #1c1c1e;
-    --muted: #8a8a8e;
-    --card: #ffffff;
-    --line: #d8d8dc;
-    --accent: #0a84ff;
-    --ok: #34c759;
-    --warn: #ff9f0a;
-    --warn-fg: #a8690a;
-    --bad: #ff3b30;
+    --bg: #f6f5f2;
+    --fg: #201d19;
+    --muted: #8a8378;
+    --card: #fffdf9;
+    --line: #e7e2d8;
+    --accent: #0e8c7b;
+    --ok: #1f9d55;
+    --warn: #c17d0b;
+    --warn-fg: #92600a;
+    --bad: #d23b2f;
+    --ui:
+      "Avenir Next", "SF Pro Text", system-ui, -apple-system, sans-serif;
+    --display: "New York", "Avenir Next", Georgia, serif;
+    --mono: "SF Mono", "Menlo", ui-monospace, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :global(:root) {
-      --bg: #1c1c1e;
-      --fg: #f2f2f7;
-      --muted: #8e8e93;
-      --card: #2c2c2e;
-      --line: #3a3a3c;
-      --accent: #0a84ff;
-      --ok: #30d158;
-      --warn: #ff9f0a;
-      --warn-fg: #ffd60a;
-      --bad: #ff453a;
+      --bg: #16161a;
+      --fg: #eceae6;
+      --muted: #8f897e;
+      --card: #202024;
+      --line: #33333a;
+      --accent: #38c9b6;
+      --ok: #3fcf7a;
+      --warn: #e0a52e;
+      --warn-fg: #e9be6a;
+      --bad: #ff5c50;
     }
   }
   :global(body) {
     margin: 0;
     background: var(--bg);
     color: var(--fg);
-    font:
-      13px/1.5 -apple-system,
-      system-ui,
-      sans-serif;
+    font: 13px/1.5 var(--ui);
     -webkit-font-smoothing: antialiased;
+    letter-spacing: 0.005em;
   }
   main {
     max-width: 660px;
@@ -142,9 +144,10 @@
   }
   .brand h1 {
     margin: 0;
-    font-size: 1.15rem;
-    font-weight: 650;
-    letter-spacing: -0.01em;
+    font-family: var(--display);
+    font-size: 1.4rem;
+    font-weight: 600;
+    letter-spacing: 0;
   }
   .brand span {
     color: var(--muted);
@@ -219,7 +222,7 @@
   }
   .err {
     color: var(--bad);
-    font-family: ui-monospace, monospace;
+    font-family: var(--mono);
     font-size: 0.85rem;
   }
   .muted {

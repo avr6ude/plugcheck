@@ -80,7 +80,7 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-family: ui-monospace, monospace;
+    font-family: var(--mono);
     font-size: 0.75rem;
   }
   td {

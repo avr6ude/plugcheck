@@ -155,14 +155,14 @@
 
   {#if port.devices.length}
     <details class="disc" open>
-      <summary><span class="chev">›</span> Connected devices ({deviceCount()})</summary>
+      <summary><span class="chev" aria-hidden="true"><svg viewBox="0 0 12 12" width="8" height="8"><path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Connected devices ({deviceCount()})</summary>
       <DeviceTree nodes={port.devices} />
     </details>
   {/if}
 
   {#if details.length || (port.charger?.pdos.length ?? 0) > 0}
     <details class="disc">
-      <summary><span class="chev">›</span> Port details</summary>
+      <summary><span class="chev" aria-hidden="true"><svg viewBox="0 0 12 12" width="8" height="8"><path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Port details</summary>
       <dl class="kv wide">
         {#each details as [k, v]}
           <div><dt>{k}</dt><dd>{v}</dd></div>
@@ -186,7 +186,7 @@
   {/if}
 
   <button class="raw" onclick={() => onEngineer(port.id)}>
-    <span class="chev">›</span> Raw IOKit data
+    <span class="chev" aria-hidden="true"><svg viewBox="0 0 12 12" width="8" height="8"><path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Raw IOKit data
   </button>
 </section>
 
@@ -354,9 +354,13 @@
     color: var(--fg);
   }
   .chev {
-    display: inline-block;
+    flex: none;
+    width: 12px;
+    height: 12px;
+    display: grid;
+    place-items: center;
+    color: var(--muted);
     transition: transform 0.15s ease;
-    font-size: 0.85rem;
   }
   .disc[open] summary .chev {
     transform: rotate(90deg);

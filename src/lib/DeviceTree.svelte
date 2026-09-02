@@ -139,6 +139,6 @@
     line-height: 1.4;
   }
   .mono {
-    font-family: ui-monospace, monospace;
+    font-family: var(--mono);
   }
 </style>
