@@ -122,19 +122,19 @@ fn subline(p: &Port) -> String {
     }
     let dev = fastest_device(p);
     if is_thunderbolt(p.active_transport) {
-        "Thunderbolt / USB4 link is active.".into()
+        "Thunderbolt / USB4 link up.".into()
     } else if p.active_transport.rank() >= Transport::Usb3Gen1.rank()
         || dev.rank() >= Transport::Usb3Gen1.rank()
     {
-        "SuperSpeed data link is active.".into()
+        "USB 3 link up.".into()
     } else if p.dp_alt && dev.rank() <= Transport::Usb2.rank() {
-        "DisplayPort video is active.".into()
+        "DisplayPort video only.".into()
     } else if p.active_transport == Transport::Usb2 || dev == Transport::Usb2 {
-        "USB 2.0 data link is active.".into()
+        "USB 2.0 link up.".into()
     } else if p.charger.is_some() {
-        "Power only — no data link.".into()
+        "Power, no data.".into()
     } else {
-        "Nothing negotiated.".into()
+        "No link.".into()
     }
 }
 
@@ -147,99 +147,100 @@ fn banners(p: &Port) -> Vec<VerdictCard> {
     let dev = fastest_device(p);
     let dp_only = p.dp_alt && dev.rank() <= Transport::Usb2.rank();
 
-    // charging banner first (matches WhatCable)
     if let Some(c) = p.charger.as_ref() {
         let (head, text, status);
         let cable_limited = p.emarker.current_amps == Some(3) && c.watts.map_or(true, |w| w > 60);
+        let ceiling = c.watts.map(|w| w as f32).or_else(|| {
+            match (c.negotiated_volts, c.negotiated_amps) {
+                (Some(v), Some(a)) => Some(v * a),
+                _ => None,
+            }
+        });
         if c.fully_charged || !c.is_charging {
-            head = "Battery full · not charging".to_string();
+            head = "Not charging — battery full".to_string();
             text = match c.watts {
-                Some(w) => format!("A {w} W adapter is connected but the Mac is not drawing power."),
-                None => "An adapter is connected but the Mac is not drawing power.".into(),
+                Some(w) => format!("{w} W adapter connected, idle."),
+                None => "Adapter connected, idle.".into(),
             };
             status = CardStatus::Ok;
         } else if cable_limited {
-            head = "Cable is limiting charging speed".to_string();
-            text = "This cable is rated for 3 A, so it caps charging near 60 W.".into();
+            head = "Charge capped by cable".to_string();
+            text = "3 A cable → ~60 W ceiling.".into();
             status = CardStatus::Warn;
         } else {
-            let w = c.watts.map(|w| w as f32).or_else(|| {
-                match (c.negotiated_volts, c.negotiated_amps) { (Some(v), Some(a)) => Some(v * a), _ => None }
-            });
-            head = match w {
-                Some(w) => format!("Charging well · up to {:.0} W", w),
+            head = match ceiling {
+                Some(w) => format!("Charging, up to {:.0} W", w),
                 None => "Charging".to_string(),
             };
-            let mut t = String::from("Charger and cable are well-matched. The Mac draws what it needs moment to moment, up to this limit.");
-            if let Some(lw) = c.live_watts {
-                t = format!("Drawing {lw:.0} W right now, up to this limit.");
-            }
-            text = t;
+            text = match (c.live_watts, ceiling) {
+                (Some(lw), Some(w)) => format!("{lw:.0} W now, {w:.0} W ceiling."),
+                (Some(lw), None) => format!("{lw:.0} W now."),
+                (None, Some(w)) => format!("Cable and charger both clear {w:.0} W."),
+                _ => "Cable and charger matched.".into(),
+            };
             status = CardStatus::Ok;
         }
         out.push(VerdictCard::banner(CardKind::Charging, status, head, text));
     }
 
-    // data banner
     if !dp_only {
+        let speed = |t: Transport| transport_label(t).split(" (").next().unwrap_or("").to_string();
         let (head, text) = match data_blame {
             _ if data_line.contains("No data device") => (
-                "No data device connected".to_string(),
-                "The link is up but nothing is transferring data.".to_string(),
+                "No data device".to_string(),
+                "Link up, nothing transferring.".to_string(),
             ),
             Blame::None => {
                 let shown = if dev.rank() > 0 { dev } else { p.active_transport };
                 (
-                    format!("Device runs at {}", transport_label(shown).split(" (").next().unwrap_or("full speed")),
-                    "This is the fastest the connected device supports. It is not a cable problem.".to_string(),
+                    format!("{} — device maximum", speed(shown)),
+                    "Not cable- or port-limited.".to_string(),
                 )
             }
             Blame::Cable if data_line.contains("USB 2.0") => (
-                "Cable is limiting data speed".to_string(),
-                "The link fell back to USB 2.0 — likely a charge-only cable. A data cable would be faster.".to_string(),
+                "Cable capped at USB 2.0".to_string(),
+                "Charge-only cable. A data cable would be faster.".to_string(),
             ),
-            Blame::Cable => (
-                "Cable is limiting data speed".to_string(),
-                data_line.clone(),
-            ),
-            Blame::Port => (
-                "Port is negotiating below capability".to_string(),
-                data_line.clone(),
-            ),
+            Blame::Cable => ("Cable-limited".to_string(), data_line.clone()),
+            Blame::Port => ("Port-limited".to_string(), data_line.clone()),
             Blame::Device => (
-                format!("Device runs at {}", transport_label(dev).split(" (").next().unwrap_or("its top speed")),
-                "This is the fastest the connected device supports. It is not a cable problem.".to_string(),
+                format!("{} — device maximum", speed(dev)),
+                "Device won't negotiate faster.".to_string(),
             ),
         };
         out.push(VerdictCard::banner(CardKind::Data, blame_status(data_blame), head, text));
     }
 
-    // display banner
     if p.dp_alt || p.display.is_some() {
         if let Some(d) = &p.display {
             let res = match (&d.pixels, d.hz) {
                 (Some(px), Some(hz)) => format!("{} @ {hz} Hz", px.replace(" x ", " \u{00d7} ")),
                 (Some(px), None) => px.replace(" x ", " \u{00d7} "),
-                _ => "an external display".to_string(),
+                _ => "external display".to_string(),
             };
             if d.degraded {
                 let nat = d.native_pixels.clone().map(|n| n.replace(" x ", " \u{00d7} "));
                 out.push(VerdictCard::banner(
                     CardKind::Display,
                     CardStatus::Warn,
-                    format!("{} is below its native resolution", d.name),
+                    format!("{} below native", d.name),
                     match nat {
-                        Some(n) => format!("Running at {res}; the panel is {n}. macOS or the link may be limiting it."),
-                        None => format!("Running at {res}, below the panel's native mode."),
+                        Some(n) => format!("{res} — panel is {n}."),
+                        None => format!("{res} — below native mode."),
                     },
                 ));
             } else {
-                let mut t = format!("Full quality over {}.", d.connection.clone().unwrap_or_else(|| "the DisplayPort link".into()));
-                if d.hdr { t.push_str(" HDR is on."); }
+                let mut t = match &d.connection {
+                    Some(c) => format!("Over {c}."),
+                    None => "DisplayPort Alt Mode.".to_string(),
+                };
+                if d.hdr {
+                    t.push_str(" HDR on.");
+                }
                 out.push(VerdictCard::banner(
                     CardKind::Display,
                     CardStatus::Ok,
-                    format!("Driving {} at {res}", d.name),
+                    format!("{} · {res}", d.name),
                     t,
                 ));
             }
@@ -247,9 +248,12 @@ fn banners(p: &Port) -> Vec<VerdictCard> {
             out.push(VerdictCard::banner(
                 CardKind::Display,
                 CardStatus::Ok,
-                "DisplayPort video is active".to_string(),
-                if dp_only { "USB data runs at USB 2.0, which is normal for a video adapter.".to_string() }
-                else { "A DisplayPort Alt Mode video stream is running.".to_string() },
+                "DisplayPort video".to_string(),
+                if dp_only {
+                    "Data side is USB 2.0 — normal for an adapter.".to_string()
+                } else {
+                    "Alt Mode stream running.".to_string()
+                },
             ));
         }
     }
@@ -273,33 +277,37 @@ fn cable_details(p: &Port) -> Vec<String> {
 
     // 2. connected device identity (first top-level device)
     if let Some(d0) = p.devices.first() {
-        let mut s = format!("Connected device: {}", d0.name);
-        if let Some(v) = &d0.vendor { s.push_str(&format!(", {v}")); }
+        let mut s = format!("Device: {}", d0.name);
+        if let Some(v) = &d0.vendor {
+            s.push_str(&format!(", {v}"));
+        }
         if let Some(vp) = &d0.vid_pid {
-            if let Some(vid) = vp.split(':').next() { s.push_str(&format!(" (0x{})", vid.to_uppercase())); }
+            if let Some(vid) = vp.split(':').next() {
+                s.push_str(&format!(" (0x{})", vid.to_uppercase()));
+            }
         }
         out.push(s);
     }
 
     // 3. e-marker
     if p.emarker.present {
-        out.push(format!("Cable e-marker: {}", cable_text(p)));
+        out.push(format!("E-marker: {}", cable_text(p)));
     } else {
-        out.push("No e-marker detected. The cable may have one, but macOS only reads it above 3 A or with Thunderbolt.".into());
+        out.push("E-marker: not readable (macOS needs \u{2265} 3 A or Thunderbolt).".into());
     }
-    if p.cable_kind == "active" {
-        out.push("Active cable (has its own signal electronics).".into());
-    } else if p.cable_kind == "optical" {
-        out.push("Optical cable.".into());
+    match p.cable_kind.as_str() {
+        "active" => out.push("Active cable (own signal electronics).".into()),
+        "optical" => out.push("Optical cable.".into()),
+        _ => {}
     }
 
     // 4 + 5. charger advertise + negotiated
     if let Some(c) = &p.charger {
         if let Some(w) = c.watts {
-            out.push(format!("Charger advertises up to {w} W"));
+            out.push(format!("Charger maximum: {w} W"));
         }
         if let (Some(v), Some(a)) = (c.negotiated_volts, c.negotiated_amps) {
-            out.push(format!("Currently negotiated: {v:.0} V @ {a:.2} A ({:.0} W)", v * a));
+            out.push(format!("Negotiated: {v:.0} V / {a:.2} A ({:.0} W)", v * a));
         }
     }
 
@@ -777,7 +785,7 @@ mod tests {
         assert_eq!(kinds, vec![CardKind::Data]);
         assert_eq!(v.cards[0].status, CardStatus::Ok);
         assert!(!v.cards[0].head.is_empty());
-        assert!(v.cable_details.iter().any(|b| b.contains("No e-marker")));
+        assert!(v.cable_details.iter().any(|b| b.contains("not readable")));
     }
 
     #[test]
