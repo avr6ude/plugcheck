@@ -91,11 +91,12 @@
   }
   .caret {
     width: 0.9rem;
+    height: 1.34rem; /* == line1 line-box, so the glyph lands on the name's centre */
     flex: none;
+    align-self: flex-start;
     background: none;
     border: 0;
     padding: 0;
-    margin-top: 0.15rem;
     color: var(--muted);
     cursor: pointer;
     display: grid;
@@ -118,6 +119,7 @@
     align-items: baseline;
     gap: 0.35rem;
     font-size: 0.84rem;
+    line-height: 1.6;
   }
   .name {
     font-weight: 500;

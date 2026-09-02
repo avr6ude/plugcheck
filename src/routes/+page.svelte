@@ -104,10 +104,9 @@
     --warn: #c17d0b;
     --warn-fg: #92600a;
     --bad: #d23b2f;
-    --ui:
-      "Avenir Next", "SF Pro Text", system-ui, -apple-system, sans-serif;
-    --display: "New York", "Avenir Next", Georgia, serif;
-    --mono: "SF Mono", "Menlo", ui-monospace, monospace;
+    --ui: -apple-system, system-ui, "Helvetica Neue", Arial, sans-serif;
+    --display: var(--ui);
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :global(:root) {
@@ -128,8 +127,7 @@
     background: var(--bg);
     color: var(--fg);
     font: 13px/1.5 var(--ui);
-    -webkit-font-smoothing: antialiased;
-    letter-spacing: 0.005em;
+    /* no -webkit-font-smoothing override: subpixel AA is crisper on 1x displays */
   }
   main {
     max-width: 660px;
@@ -144,10 +142,9 @@
   }
   .brand h1 {
     margin: 0;
-    font-family: var(--display);
-    font-size: 1.4rem;
-    font-weight: 600;
-    letter-spacing: 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
   .brand span {
     color: var(--muted);
