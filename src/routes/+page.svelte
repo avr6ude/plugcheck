@@ -3,18 +3,19 @@
   import {
     store,
     startPolling,
-    refresh,
     verdictFor,
     settings,
     loadSettings,
-    saveSettings,
   } from "$lib/snapshot.svelte";
   import PortCard from "$lib/PortCard.svelte";
   import EngineerPanel from "$lib/EngineerPanel.svelte";
   import SettingsPanel from "$lib/SettingsPanel.svelte";
+  import Sidebar from "$lib/Sidebar.svelte";
 
   let engineerPort = $state<string | null>(null);
   let showSettings = $state(false);
+  let sidebar = $state(false);
+  let technical = $state(false);
 
   onMount(() => {
     let unlisten: (() => void) | undefined;
@@ -28,34 +29,39 @@
     settings.hide_empty ? ports.filter((p) => p.occupied) : ports,
   );
   const emptyCount = $derived(ports.filter((p) => !p.occupied).length);
-
-  function toggleHideEmpty() {
-    settings.hide_empty = !settings.hide_empty;
-    saveSettings();
-  }
+  const deviceCount = $derived(
+    ports.reduce((a, p) => {
+      const w = (ns: typeof p.devices): number =>
+        ns.reduce((x, d) => x + 1 + w(d.children), 0);
+      return a + w(p.devices);
+    }, 0),
+  );
 </script>
 
+<Sidebar
+  open={sidebar}
+  {technical}
+  {deviceCount}
+  onClose={() => (sidebar = false)}
+  onSettings={() => {
+    sidebar = false;
+    showSettings = true;
+  }}
+  onToggleTechnical={() => (technical = !technical)}
+/>
+
+<div class="bar">
+  <button class="ham" onclick={() => (sidebar = true)} aria-label="Menu">
+    <svg viewBox="0 0 16 16" width="15" height="15"
+      ><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+    /></svg>
+  </button>
+  <span class="wm">plugcheck</span>
+  <span class="sub">USB-C &amp; Thunderbolt inspector</span>
+  {#if store.loading}<span class="load">…</span>{/if}
+</div>
+
 <main>
-  <header>
-    <div class="brand">
-      <h1>plugcheck</h1>
-      <span>USB-C &amp; Thunderbolt inspector</span>
-    </div>
-    <div class="actions">
-      <button onclick={() => (showSettings = true)} title="Settings" aria-label="Settings">⚙</button>
-      <button onclick={refresh} disabled={store.loading} title="Refresh now">
-        {store.loading ? "…" : "↻"}
-      </button>
-    </div>
-  </header>
-
-  {#if emptyCount > 0}
-    <label class="toggle">
-      <input type="checkbox" checked={settings.hide_empty} onchange={toggleHideEmpty} />
-      Hide {emptyCount} empty port{emptyCount === 1 ? "" : "s"}
-    </label>
-  {/if}
-
   {#if store.error}
     <p class="err">{store.error}</p>
   {:else if store.snapshot}
@@ -67,14 +73,13 @@
             <PortCard
               {port}
               verdict={verdictFor(port.id)}
+              {technical}
               onEngineer={(id) => (engineerPort = id)}
             />
           </div>
         {:else}
           <button class="empty-row" onclick={() => (engineerPort = port.id)}>
-            <span class="pip"></span>
-            <span class="lbl">{port.kind}</span>
-            <span class="tag">Empty</span>
+            {port.kind}<span class="tag">Empty</span>
           </button>
         {/if}
       {/each}
@@ -83,10 +88,15 @@
     <p class="muted">Reading ports…</p>
   {/if}
 
+  <footer>
+    {deviceCount} USB device{deviceCount === 1 ? "" : "s"}
+    {#if emptyCount}· {emptyCount} empty port{emptyCount === 1 ? "" : "s"}{/if}
+    · {store.version} · plugcheck
+  </footer>
+
   {#if engineerPort}
     <EngineerPanel portId={engineerPort} onClose={() => (engineerPort = null)} />
   {/if}
-
   {#if showSettings}
     <SettingsPanel onClose={() => (showSettings = false)} />
   {/if}
@@ -105,7 +115,6 @@
     --warn-fg: #92600a;
     --bad: #d23b2f;
     --ui: -apple-system, system-ui, "Helvetica Neue", Arial, sans-serif;
-    --display: var(--ui);
     --mono: ui-monospace, "SF Mono", Menlo, monospace;
   }
   @media (prefers-color-scheme: dark) {
@@ -127,55 +136,46 @@
     background: var(--bg);
     color: var(--fg);
     font: 13px/1.5 var(--ui);
-    /* no -webkit-font-smoothing override: subpixel AA is crisper on 1x displays */
   }
-  main {
-    max-width: 660px;
-    margin: 0 auto;
-    padding: 1.2rem 1.2rem 2.5rem;
-  }
-  header {
+
+  .bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-bottom: 0.9rem;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.9rem;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 0.5px solid var(--line);
   }
-  .brand h1 {
-    margin: 0;
-    font-size: 1.2rem;
+  .ham {
+    background: none;
+    border: 0;
+    padding: 0.2rem;
+    color: var(--fg);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+  }
+  .wm {
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
   }
-  .brand span {
+  .sub {
     color: var(--muted);
     font-size: 0.75rem;
   }
-  .actions {
-    display: flex;
-    gap: 0.4rem;
-  }
-  .actions button {
-    width: 30px;
-    height: 30px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--card);
-    color: var(--fg);
-    font-size: 0.95rem;
-    cursor: pointer;
-  }
-  .actions button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.78rem;
+  .load {
+    margin-left: auto;
     color: var(--muted);
-    margin-bottom: 0.8rem;
-    cursor: pointer;
+  }
+
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 1rem 1rem 1.5rem;
   }
   .list {
     display: flex;
@@ -183,7 +183,7 @@
     gap: 0.9rem;
   }
   .slot-label {
-    font-size: 0.66rem;
+    font-size: 0.64rem;
     font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -193,28 +193,24 @@
   .empty-row {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
     width: 100%;
     text-align: left;
-    padding: 0.7rem 0.9rem;
-    border: 0.5px solid var(--line);
-    border-radius: 12px;
-    background: var(--card);
+    padding: 0.6rem 0.9rem;
+    border: 0.5px dashed var(--line);
+    border-radius: 10px;
+    background: none;
     color: var(--muted);
     font-size: 0.82rem;
     cursor: pointer;
   }
-  .empty-row:hover {
-    color: var(--fg);
-  }
-  .empty-row .pip {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--line);
-  }
   .empty-row .tag {
     margin-left: auto;
+    font-size: 0.72rem;
+  }
+  footer {
+    margin-top: 1.2rem;
+    text-align: center;
+    color: var(--muted);
     font-size: 0.72rem;
   }
   .err {

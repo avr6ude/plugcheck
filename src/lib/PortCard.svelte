@@ -6,10 +6,12 @@
   let {
     port,
     verdict,
+    technical,
     onEngineer,
   }: {
     port: Port;
     verdict: PortVerdict | undefined;
+    technical: boolean;
     onEngineer: (id: string) => void;
   } = $props();
 
@@ -20,14 +22,13 @@
       "ok",
     ),
   );
-
   const displayName = $derived(
     port.history?.name ?? verdict?.headline ?? (port.occupied ? "Connected" : "Empty"),
   );
 
   let editing = $state(false);
-  let expandAll = $state(false);
   let draft = $state("");
+  let expandAll = $state(false);
   function startEdit() {
     draft = port.history?.name ?? "";
     editing = true;
@@ -37,64 +38,22 @@
     if (port.history_sig) await renameCable(port.history_sig, draft.trim() || null);
   }
 
-  function deviceCount(): number {
-    const w = (ns: Port["devices"]): number =>
-      ns.reduce((a, d) => a + 1 + w(d.children), 0);
+  function count(): number {
+    const w = (ns: Port["devices"]): number => ns.reduce((a, d) => a + 1 + w(d.children), 0);
     return w(port.devices);
   }
-  function hubCount(): number {
+  function hubs(): number {
     const w = (ns: Port["devices"]): number =>
       ns.reduce((a, d) => a + (d.is_hub ? 1 : 0) + w(d.children), 0);
     return w(port.devices);
   }
 
-  function speedName(s: string): string {
-    return (
-      {
-        none: "—",
-        usb2: "USB 2.0",
-        usb3_gen1: "USB 3.2 Gen 1",
-        usb3_gen2: "USB 3.2 Gen 2",
-        usb4_gen3: "USB4 Gen 3",
-        usb4_gen4: "USB4",
-        thunderbolt3: "Thunderbolt 3",
-        thunderbolt4: "Thunderbolt 4",
-        displayport: "DisplayPort",
-      }[s] ?? s
-    );
-  }
-  function fastestDevice(): string {
-    let best = "none";
-    const order = ["none", "usb2", "usb3_gen1", "usb3_gen2", "usb4_gen3", "thunderbolt3", "usb4_gen4", "thunderbolt4"];
-    const walk = (ns: Port["devices"]) => {
-      for (const d of ns) {
-        if (order.indexOf(d.speed) > order.indexOf(best)) best = d.speed;
-        walk(d.children);
-      }
-    };
-    walk(port.devices);
-    return best;
-  }
-  const cableKind = $derived(
-    ({ passive: "Passive", active: "Active", optical: "Optical" } as Record<string, string>)[
-      port.cable_kind
-    ] ?? null,
-  );
-
-  const details = $derived(
+  const conn = $derived(
     (
       [
-        ["Port supports", port.supported.length ? port.supported.join(", ") : null],
-        [
-          "Cable supports",
-          port.emarker.present ? speedName(port.emarker.max_speed) : "Unknown (no e-marker)",
-        ],
-        ["Negotiated", port.provisioned.length ? port.provisioned.join(", ") : null],
-        [
-          "Fastest device",
-          fastestDevice() !== "none" ? speedName(fastestDevice()) : null,
-        ],
-        ["Cable type", cableKind],
+        ["Connection active", port.occupied ? "Yes" : "No"],
+        ["Active cable", port.cable_kind === "active" ? "Yes" : "No"],
+        ["Optical cable", port.cable_kind === "optical" ? "Yes" : "No"],
         ["Plug orientation", port.orientation != null ? `Position ${port.orientation}` : null],
         ["Connections", port.connection_count != null ? `${port.connection_count}` : null],
         ["Plug events", port.plug_events != null ? `${port.plug_events}` : null],
@@ -102,110 +61,126 @@
       ] as [string, string | null][]
     ).filter(([, v]) => v != null) as [string, string][],
   );
+  const trans = $derived([
+    ["Supported", port.supported.join(", ") || "—"],
+    ["Negotiated", port.provisioned.join(", ") || "—"],
+  ] as [string, string][]);
 </script>
 
 <section class="port">
-  <div class="hdr">
+  <div class="top">
     <span class="ico {worst}" aria-hidden="true">
       {#if worst === "ok"}
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M3.5 8.5 L6.5 11.5 L12.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 16 16" width="16" height="16"><path d="M3.5 8.5 L6.5 11.5 L12.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       {:else if worst === "warn"}
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M8 2 L15 14 L1 14 Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 6.5 V9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.6" r="0.9" fill="currentColor"/></svg>
+        <svg viewBox="0 0 16 16" width="16" height="16"><path d="M8 2 L15 14 L1 14 Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 6.3 V9.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.7" r="0.95" fill="currentColor"/></svg>
       {:else if worst === "bad"}
-        <svg viewBox="0 0 16 16" width="15" height="15"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.6 5.6 L10.4 10.4 M10.4 5.6 L5.6 10.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <svg viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.6 5.6 L10.4 10.4 M10.4 5.6 L5.6 10.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       {:else}
-        <svg viewBox="0 0 16 16" width="15" height="15"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+        <svg viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
       {/if}
     </span>
-    {#if editing}
-      <input
-        class="rename"
-        bind:value={draft}
-        placeholder="Name this cable / dock"
-        onkeydown={(e) => e.key === "Enter" && commit()}
-        onblur={commit}
-      />
-    {:else}
-      <button class="title" onclick={port.history ? startEdit : undefined}>{displayName}</button>
-      {#if port.history}<span class="pencil" aria-hidden="true">✎</span>{/if}
-    {/if}
+    <div class="tt">
+      <div class="pid">{port.id}</div>
+      {#if editing}
+        <input
+          class="rename"
+          bind:value={draft}
+          placeholder="Name this cable / dock"
+          onkeydown={(e) => e.key === "Enter" && commit()}
+          onblur={commit}
+        />
+      {:else}
+        <div class="nl">
+          <button class="name" onclick={port.history ? startEdit : undefined}>{displayName}</button>
+          {#if port.history}<span class="pencil" aria-hidden="true">✎</span>{/if}
+        </div>
+      {/if}
+      {#if verdict?.subline}<div class="sl">{verdict.subline}</div>{/if}
+    </div>
     {#if port.history && !editing}
-      <span class="seen">seen {port.history.count}× · {port.history.first_seen}</span>
+      <button class="add" onclick={startEdit}>
+        {port.history.name ? "Rename cable" : "Name this cable"} · seen {port.history.count}×
+      </button>
     {/if}
   </div>
 
-  <div class="fields">
-    {#each verdict?.cards ?? [] as card}
-      <div class="field {card.status}">
-        <div class="k">{card.title}</div>
-        <div class="v">
-          {#if card.rows.length}
-            {#each card.rows as [k, v]}
-              <div class="sub"><span>{k}</span>{v}</div>
-            {/each}
-          {/if}
-          {#if card.text}<div>{card.text}</div>{/if}
-        </div>
-      </div>
-    {/each}
-
-    {#each verdict?.trust_flags ?? [] as flag}
-      <div class="field warn">
-        <div class="k">Trust</div>
-        <div class="v">{flag}</div>
-      </div>
-    {/each}
-
-    {#if port.devices.length}
-      <div class="field">
-        <div class="k">
-          Devices
-          <span class="cnt">{deviceCount()}{hubCount() ? ` · ${hubCount()} hub${hubCount() === 1 ? "" : "s"}` : ""}</span>
-          {#if hubCount()}
-            <button class="showall" onclick={() => (expandAll = !expandAll)}>
-              {expandAll ? "Collapse" : "Show all"}
-            </button>
-          {/if}
-        </div>
-        <div class="v">
-          <DeviceTree nodes={port.devices} forceOpen={expandAll} />
-        </div>
-      </div>
-    {/if}
-  </div>
-
-  {#if details.length || (port.charger?.pdos.length ?? 0) > 0}
-    <details class="disc">
-      <summary>
-        <svg class="chev" viewBox="0 0 12 12" width="9" height="9" aria-hidden="true"
-          ><path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" stroke-width="1.7"
-            stroke-linecap="round" stroke-linejoin="round" /></svg
-        >
-        Details
-      </summary>
-      <div class="disc-body">
-        <dl>
-          {#each details as [k, v]}
-            <div><dt>{k}</dt><dd>{v}</dd></div>
-          {/each}
-        </dl>
-        {#if port.charger && port.charger.pdos.length}
-          <div class="pdo">
-            <span class="pdo-h">Power-delivery contract</span>
-            <table>
-              <tbody>
-                {#each port.charger.pdos as pdo}
-                  <tr class:on={port.charger.negotiated_volts === pdo.volts}>
-                    <td>{pdo.volts} V</td><td>{pdo.amps.toFixed(2)} A</td><td>{pdo.watts} W</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
+  {#if verdict?.cards.length}
+    <div class="banners">
+      {#each verdict.cards as c}
+        <div class="banner {c.status}">
+          <span class="bi" aria-hidden="true">
+            {#if c.status === "ok"}✓{:else if c.status === "warn"}!{:else if c.status === "bad"}✕{:else}ⓘ{/if}
+          </span>
+          <div>
+            <div class="bh">{c.head}</div>
+            <div class="bt">{c.text}</div>
           </div>
+        </div>
+      {/each}
+      {#each verdict.trust_flags as f}
+        <div class="banner warn">
+          <span class="bi">!</span>
+          <div><div class="bh">Cable trust signal</div><div class="bt">{f}</div></div>
+        </div>
+      {/each}
+    </div>
+  {/if}
+
+  {#if verdict?.cable_details.length}
+    <div class="sect">
+      <div class="sh">Cable details</div>
+      <ul class="bul">
+        {#each verdict.cable_details as b}<li>{b}</li>{/each}
+      </ul>
+    </div>
+  {/if}
+
+  {#if port.devices.length}
+    <div class="sect">
+      <div class="sh">
+        Connected devices
+        <span class="dim">· {count()}{hubs() ? ` · ${hubs()} hub${hubs() === 1 ? "" : "s"}` : ""}</span>
+        {#if hubs()}
+          <button class="lnk" onclick={() => (expandAll = !expandAll)}>{expandAll ? "Hide hubs" : "Show all"}</button>
         {/if}
-        <button class="raw" onclick={() => onEngineer(port.id)}>Raw IOKit data →</button>
       </div>
-    </details>
+      <DeviceTree nodes={port.devices} forceOpen={expandAll} />
+    </div>
+  {/if}
+
+  {#if port.charger && port.charger.pdos.length}
+    <div class="sect">
+      <div class="sh">USB-PD profiles</div>
+      <table class="pdo">
+        <tbody>
+          {#each port.charger.pdos as pdo}
+            <tr class:on={port.charger.negotiated_volts === pdo.volts}>
+              <td><span class="pd" class:pdon={port.charger.negotiated_volts === pdo.volts}></span></td>
+              <td>{pdo.volts} V @ {pdo.amps.toFixed(2)} A</td>
+              <td>{pdo.watts} W</td>
+              <td>{port.charger.negotiated_volts === pdo.volts ? "active" : ""}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  {/if}
+
+  {#if technical}
+    <div class="tech">
+      <div class="tg">
+        <div class="sh">Connection</div>
+        <dl>{#each conn as [k, v]}<div><dt>{k}</dt><dd>{v}</dd></div>{/each}</dl>
+      </div>
+      <div class="tg">
+        <div class="sh">Transports</div>
+        <dl>{#each trans as [k, v]}<div><dt>{k}</dt><dd>{v}</dd></div>{/each}</dl>
+      </div>
+      <button class="lnk raw" onclick={() => onEngineer(port.id)}>
+        All raw IOKit properties ({Object.keys(port.raw).length}) →
+      </button>
+    </div>
   {/if}
 </section>
 
@@ -214,21 +189,17 @@
     background: var(--card);
     border-radius: 10px;
     border: 0.5px solid var(--line);
-    padding: 0.75rem 0.85rem 0.6rem;
+    padding: 0.8rem 0.9rem;
   }
 
-  /* header */
-  .hdr {
+  .top {
     display: flex;
-    align-items: center;
-    gap: 0.4rem;
+    gap: 0.55rem;
+    align-items: flex-start;
   }
   .ico {
     flex: none;
-    display: grid;
-    place-items: center;
-    width: 15px;
-    height: 15px;
+    margin-top: 0.15rem;
   }
   .ico.ok {
     color: var(--ok);
@@ -242,175 +213,225 @@
   .ico.idle {
     color: var(--muted);
   }
-  .title {
-    font: 600 0.95rem/1.2 inherit;
+  .tt {
+    min-width: 0;
+    flex: 1;
+  }
+  .pid {
+    font: 0.68rem/1.2 var(--mono);
+    color: var(--muted);
+  }
+  .nl {
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+  }
+  .name {
+    font: 650 1rem/1.3 inherit;
     color: var(--fg);
     background: none;
     border: 0;
     padding: 0;
     cursor: pointer;
   }
-  .title:hover {
+  .name:hover {
     color: var(--accent);
   }
   .pencil {
     color: var(--muted);
     font-size: 0.72rem;
     opacity: 0;
-    transition: opacity 0.1s;
   }
-  .hdr:hover .pencil {
+  .top:hover .pencil {
     opacity: 1;
   }
   .rename {
-    font: 600 0.95rem/1.2 inherit;
+    font: 650 1rem/1.3 inherit;
     color: var(--fg);
     background: var(--bg);
     border: 1px solid var(--accent);
     border-radius: 5px;
-    padding: 0.1rem 0.35rem;
-    flex: 1;
-    min-width: 0;
+    padding: 0.05rem 0.35rem;
+    width: 100%;
   }
-  .seen {
-    margin-left: auto;
+  .sl {
     color: var(--muted);
-    font-size: 0.7rem;
-    white-space: nowrap;
+    font-size: 0.82rem;
+    margin-top: 0.05rem;
   }
-
-  .showall {
-    margin-left: 0.4rem;
+  .add {
+    flex: none;
     background: none;
     border: 0;
     padding: 0;
     color: var(--accent);
-    font-size: 0.72rem;
+    font-size: 0.74rem;
     cursor: pointer;
+    white-space: nowrap;
   }
 
-  /* get-info style fields */
-  .fields {
-    margin-top: 0.5rem;
+  /* verdict banners */
+  .banners {
     display: grid;
-    gap: 0.02rem;
+    gap: 0.35rem;
+    margin: 0.7rem 0 0.2rem;
   }
-  .field {
-    display: grid;
-    grid-template-columns: 6.5rem 1fr;
-    gap: 0.6rem;
-    padding: 0.32rem 0;
-    border-top: 0.5px solid var(--line);
-    font-size: 0.84rem;
-    align-items: start;
-  }
-  .field:first-child {
-    border-top: 0;
-  }
-  .k {
-    color: var(--muted);
-    display: flex;
-    flex-direction: column;
-  }
-  .cnt {
-    font-size: 0.72rem;
-  }
-  .v {
-    min-width: 0;
-    line-height: 1.4;
-  }
-  .v .sub {
+  .banner {
     display: flex;
     gap: 0.5rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 8px;
+    border: 0.5px solid var(--line);
+    background: color-mix(in srgb, var(--muted) 8%, var(--card));
   }
-  .v .sub span {
-    color: var(--muted);
-    min-width: 4rem;
+  .banner.ok {
+    border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+    background: color-mix(in srgb, var(--ok) 11%, var(--card));
   }
-  .field.warn .v {
-    color: var(--warn-fg);
+  .banner.warn {
+    border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+    background: color-mix(in srgb, var(--warn) 12%, var(--card));
   }
-  .field.bad .v {
+  .banner.bad {
+    border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+    background: color-mix(in srgb, var(--bad) 11%, var(--card));
+  }
+  .bi {
+    flex: none;
+    width: 1rem;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+  .banner.ok .bi {
+    color: var(--ok);
+  }
+  .banner.warn .bi {
+    color: var(--warn);
+  }
+  .banner.bad .bi {
     color: var(--bad);
   }
-
-  /* details disclosure */
-  .disc {
-    margin-top: 0.4rem;
-  }
-  .disc summary {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.35rem 0 0.2rem;
-    font-size: 0.76rem;
+  .banner.idle .bi {
     color: var(--muted);
-    cursor: pointer;
-    list-style: none;
   }
-  .disc summary::-webkit-details-marker {
-    display: none;
-  }
-  .disc summary:hover {
+  .bh {
+    font-weight: 650;
+    font-size: 0.86rem;
     color: var(--fg);
   }
-  .chev {
-    transition: transform 0.14s ease;
+  .banner.ok .bh {
+    color: color-mix(in srgb, var(--ok) 75%, var(--fg));
   }
-  .disc[open] summary .chev {
-    transform: rotate(90deg);
+  .bt {
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.4;
+    margin-top: 0.1rem;
   }
-  .disc-body {
-    padding: 0.3rem 0 0.2rem 0.2rem;
+
+  /* sections */
+  .sect {
+    margin-top: 0.75rem;
   }
-  .disc dl {
+  .sh {
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.3rem;
+  }
+  .sh .dim {
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .lnk {
+    background: none;
+    border: 0;
+    padding: 0;
+    margin-left: 0.5rem;
+    color: var(--accent);
+    font-size: 0.72rem;
+    cursor: pointer;
+  }
+  .bul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.83rem;
+    line-height: 1.55;
+  }
+  .bul li {
+    padding-left: 0.9rem;
+    position: relative;
+  }
+  .bul li::before {
+    content: "·";
+    position: absolute;
+    left: 0.2rem;
+    color: var(--muted);
+  }
+
+  .pdo {
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+  .pdo td {
+    padding: 0.1rem 0.7rem 0.1rem 0;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .pdo tr.on td {
+    color: var(--fg);
+  }
+  .pd {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+  }
+  .pd.pdon {
+    background: var(--ok);
+    border-color: var(--ok);
+  }
+  .pdo td:last-child {
+    color: var(--ok);
+    font-size: 0.72rem;
+  }
+
+  .tech {
+    margin-top: 0.8rem;
+    padding-top: 0.6rem;
+    border-top: 0.5px solid var(--line);
+  }
+  .tg {
+    margin-bottom: 0.5rem;
+  }
+  .tech dl {
     margin: 0;
     display: grid;
-    gap: 0.12rem;
+    gap: 0.08rem;
   }
-  .disc dl > div {
+  .tech dl > div {
     display: flex;
     gap: 0.6rem;
     font-size: 0.8rem;
   }
-  .disc dt {
+  .tech dt {
     flex: none;
-    width: 9rem;
+    width: 10rem;
     color: var(--muted);
   }
-  .disc dd {
+  .tech dd {
     margin: 0;
-  }
-  .pdo {
-    margin-top: 0.5rem;
-  }
-  .pdo-h {
-    display: block;
-    font-size: 0.66rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-    margin-bottom: 0.2rem;
-  }
-  .pdo table {
-    border-collapse: collapse;
-    font: 0.78rem/1.5 var(--mono);
-  }
-  .pdo td {
-    padding: 0.06rem 0.8rem 0.06rem 0;
-    color: var(--muted);
-  }
-  .pdo tr.on td {
-    color: var(--fg);
-    font-weight: 600;
+    font-family: var(--mono);
+    font-size: 0.76rem;
   }
   .raw {
-    margin-top: 0.55rem;
-    background: none;
-    border: 0;
-    padding: 0;
-    color: var(--accent);
-    font-size: 0.76rem;
-    cursor: pointer;
+    margin-left: 0;
+    margin-top: 0.3rem;
   }
 </style>

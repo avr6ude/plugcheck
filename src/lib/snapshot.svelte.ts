@@ -88,14 +88,15 @@ export interface VerdictCard {
   kind: CardKind;
   status: CardStatus;
   title: string;
+  head: string;
   text: string;
-  rows: [string, string][];
-  chip: string;
 }
 export interface PortVerdict {
   port_id: string;
   headline: string;
+  subline: string;
   cards: VerdictCard[];
+  cable_details: string[];
   trust_flags: string[];
   data_line: string;
   data_blame: Blame;
@@ -107,7 +108,12 @@ export const store = $state<{
   verdicts: PortVerdict[];
   error: string | null;
   loading: boolean;
-}>({ snapshot: null, verdicts: [], error: null, loading: false });
+  version: string;
+}>({ snapshot: null, verdicts: [], error: null, loading: false, version: "" });
+
+invoke<string>("app_version")
+  .then((v) => (store.version = "v" + v))
+  .catch(() => {});
 
 export async function refresh(): Promise<void> {
   store.loading = true;

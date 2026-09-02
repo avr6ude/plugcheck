@@ -173,15 +173,28 @@ pub fn print_text() {
         }
         let pv = v.iter().find(|x| x.port_id == p.id);
         println!(
-            "\n{}  [{}]",
+            "\n{}  {}",
             p.id,
             pv.map(|x| x.headline.as_str()).unwrap_or("connected")
         );
+        if let Some(s) = pv.map(|x| x.subline.as_str()).filter(|s| !s.is_empty()) {
+            println!("  {s}");
+        }
         for c in pv.map(|x| x.cards.as_slice()).unwrap_or(&[]) {
-            println!("  {:<9} {}", format!("{:?}", c.kind).to_lowercase(), c.text);
+            let mark = match c.status {
+                crate::verdict::CardStatus::Ok => "\u{2713}",
+                crate::verdict::CardStatus::Warn => "!",
+                crate::verdict::CardStatus::Bad => "\u{2717}",
+                crate::verdict::CardStatus::Idle => "\u{00b7}",
+            };
+            println!("  {mark} {}", c.head);
+            println!("     {}", c.text);
         }
         for t in pv.map(|x| x.trust_flags.as_slice()).unwrap_or(&[]) {
             println!("  ! {t}");
+        }
+        for b in pv.map(|x| x.cable_details.as_slice()).unwrap_or(&[]) {
+            println!("  \u{2022} {b}");
         }
         for d in &p.devices {
             print_dev(d, 2);
@@ -259,6 +272,11 @@ fn engineer_dump(
         .find(|p| p.id == port_id)
         .map(|p| p.raw)
         .ok_or_else(|| format!("no port {port_id}"))
+}
+
+#[tauri::command]
+fn app_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
 }
 
 #[tauri::command]
@@ -364,7 +382,8 @@ pub fn run() {
             engineer_dump,
             get_settings,
             set_settings,
-            rename_cable
+            rename_cable,
+            app_version
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
