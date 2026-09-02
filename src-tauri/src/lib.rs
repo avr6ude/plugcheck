@@ -1,3 +1,4 @@
+pub mod emarker;
 pub mod model;
 pub mod probe;
 
