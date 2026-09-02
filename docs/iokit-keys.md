@@ -67,12 +67,33 @@ string/array mapping + a vendor-id lookup + a current→watts helper.
 
 ## Device tree
 
-- `system_profiler -json SPUSBDataType`: **empty array** on this machine with
-  nothing connected. Tunnelled USB devices appear here when present.
+- `system_profiler -json SPUSBDataType`: **always an empty array on this
+  hardware**, even with a hub + SSD + LAN + monitor connected. Do not use it.
+- **Use `ioreg -a -l -p IOUSB`.** Roots are `AppleT6000USBXHCI` controllers;
+  under them `IOUSBHostDevice` nodes with:
+  - `USB Product Name` / `kUSBProductString`, `USB Vendor Name` /
+    `kUSBVendorString`
+  - `UsbLinkSpeed` — bits/second, exact (e.g. `5000000000`). Preferred.
+  - `Device Speed` — enum fallback (0 low, 1 full, 2 high, 3 super, 4 super+,
+    5 super+ x2)
+  - `bDeviceClass` — `9` = hub
+  - `locationID` — int; `(loc >> 24) & 0xFF` = XHCI bus id. Children nest via
+    `IORegistryEntryChildren`.
+- **Port ↔ device linkage**: there is *no* shared key between
+  `AppleTCControllerType*` and the XHCI buses. plugcheck groups top-level USB
+  devices by bus id, then assigns each group to an occupied port by matching
+  `IOAccessoryUSBSuperSpeedActive`, falling back to sorted zip.
 - `SPThunderboltDataType`: one entry per TB bus; `receptacle_N_tag` has
-  `current_speed_key` (`"Up to 40 Gb/s"`), `receptacle_status_key`
-  (`"receptacle_no_devices_connected"` / has-device), `receptacle_id_key`
-  (matches port `PortNumber`).
+  `current_speed_key`, `receptacle_status_key`, `receptacle_id_key` (==
+  `PortNumber`). Only populated for real Thunderbolt devices — a USB-C dock
+  shows up under IOUSB, not here.
+
+## DisplayPort Alt Mode
+
+Port node key `TransportsActive` includes the string `"DisplayPort"` when the
+port is carrying video (confirmed: DP-to-USB-C cable →
+`["CC","USB2","DisplayPort"]`, `HPDAsserted = true`,
+`DisplayPortPinAssignment = true`). `Port.dp_alt` is set from that string.
 
 ## Not found on this machine
 

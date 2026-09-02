@@ -28,6 +28,30 @@ pub fn transport_from_active(active: &[String]) -> Transport {
     }
 }
 
+/// Map an IOKit `UsbLinkSpeed` (bits/second) to a [`Transport`].
+pub fn link_speed_to_transport(bps: u64) -> Transport {
+    match bps {
+        0 => Transport::None,
+        b if b <= 480_000_000 => Transport::Usb2,
+        b if b <= 5_000_000_000 => Transport::Usb3Gen1,
+        b if b <= 10_000_000_000 => Transport::Usb3Gen2,
+        b if b <= 20_000_000_000 => Transport::Usb4Gen3,
+        _ => Transport::Usb4Gen4,
+    }
+}
+
+/// Fallback: IOKit `Device Speed` enum (0 low, 1 full, 2 high, 3 super,
+/// 4 super+, 5 super+ x2).
+pub fn device_speed_enum_to_transport(n: i64) -> Transport {
+    match n {
+        0..=2 => Transport::Usb2,
+        3 => Transport::Usb3Gen1,
+        4 => Transport::Usb3Gen2,
+        5 => Transport::Usb4Gen3,
+        _ => Transport::None,
+    }
+}
+
 /// Map a `system_profiler` `speed` / Thunderbolt `current_speed_key` string.
 pub fn speed_str_to_transport(s: &str) -> Transport {
     let n = s.to_ascii_lowercase().replace([' ', '/'], "_");

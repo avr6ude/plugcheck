@@ -101,6 +101,8 @@ pub struct Port {
     pub orientation: Option<u8>,
     /// What is actually negotiated on the link right now.
     pub active_transport: Transport,
+    /// DisplayPort Alt Mode is carrying video on this port.
+    pub dp_alt: bool,
     pub emarker: EmarkerInfo,
     pub charger: Option<Charger>,
     pub devices: Vec<DeviceNode>,
@@ -149,6 +151,7 @@ mod tests {
                 occupied: true,
                 orientation: Some(1),
                 active_transport: Transport::Usb2,
+                dp_alt: false,
                 emarker: EmarkerInfo {
                     vendor_id: Some(0x05ac),
                     vendor_name: Some("Apple".into()),

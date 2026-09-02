@@ -28,6 +28,7 @@ export interface Port {
   occupied: boolean;
   orientation: number | null;
   active_transport: string;
+  dp_alt: boolean;
   emarker: Emarker;
   charger: Charger | null;
   devices: DeviceNode[];

@@ -47,6 +47,10 @@
       {verdict?.data_line ?? "…"}
     </p>
 
+    {#if port.dp_alt}
+      <p class="video">🖥 DisplayPort video active</p>
+    {/if}
+
     {#if verdict?.charging_line}
       <p class="charging">⚡ {verdict.charging_line}</p>
     {/if}
@@ -114,7 +118,8 @@
   .dot.idle {
     background: var(--muted);
   }
-  .charging {
+  .charging,
+  .video {
     margin: 0.2rem 0;
     font-size: 0.85rem;
   }

@@ -61,15 +61,23 @@ fn headline(p: &Port) -> String {
     }
     let looks_display = |n: &str| {
         let n = n.to_lowercase();
-        n.contains("display") || n.contains("monitor") || n.contains("lg ultra")
+        n.contains("display") || n.contains("monitor")
     };
+    // DisplayPort Alt Mode carrying video, and no faster-than-USB2 data device
+    // → this is a video adapter/cable.
+    if p.dp_alt && dev.rank() <= Transport::Usb2.rank() {
+        return "Display".into();
+    }
     if p.devices.iter().any(|d| looks_display(&d.name)) {
         return "Display".into();
     }
-    if dev.rank() > 0 || !p.devices.is_empty() {
+    if dev.rank() > 0 || p.devices.iter().any(|d| !d.is_hub) {
         return "USB device".into();
     }
-    "Charging only".into()
+    if p.charger.is_some() {
+        return "Charging only".into();
+    }
+    "Connected".into()
 }
 
 fn data(p: &Port) -> (String, Blame) {
@@ -80,6 +88,15 @@ fn data(p: &Port) -> (String, Blame) {
         .into_iter()
         .max()
         .unwrap();
+
+    // A video adapter with only slow USB alongside is working as intended.
+    if p.dp_alt && dev.rank() <= Transport::Usb2.rank() {
+        return (
+            "DisplayPort video is active; USB data is USB 2.0 (normal for a video adapter)."
+                .into(),
+            Blame::None,
+        );
+    }
 
     if active.rank() == 0 && dev.rank() == 0 {
         return ("No data device connected.".into(), Blame::None);
@@ -188,6 +205,17 @@ mod tests {
         emarker: EmarkerInfo,
         charger: Option<Charger>,
     ) -> Snapshot {
+        snap_dp(occupied, active, false, devices, emarker, charger)
+    }
+
+    fn snap_dp(
+        occupied: bool,
+        active: Transport,
+        dp_alt: bool,
+        devices: Vec<DeviceNode>,
+        emarker: EmarkerInfo,
+        charger: Option<Charger>,
+    ) -> Snapshot {
         Snapshot {
             captured_ms: 0,
             ports: vec![Port {
@@ -196,6 +224,7 @@ mod tests {
                 occupied,
                 orientation: Some(1),
                 active_transport: active,
+                dp_alt,
                 emarker,
                 charger,
                 devices,
@@ -246,11 +275,43 @@ mod tests {
     }
 
     #[test]
-    fn charge_only_headline_when_no_devices() {
+    fn connected_headline_when_no_devices_no_charger() {
         let s = snap(true, Transport::None, vec![], EmarkerInfo::default(), None);
         let v = &verdicts(&s)[0];
-        assert_eq!(v.headline, "Charging only");
+        assert_eq!(v.headline, "Connected");
         assert_eq!(v.data_blame, Blame::None);
+    }
+
+    #[test]
+    fn charging_only_headline_when_charger_present() {
+        let s = snap(
+            true,
+            Transport::None,
+            vec![],
+            EmarkerInfo::default(),
+            Some(Charger {
+                negotiated_volts: None,
+                negotiated_amps: Some(3.0),
+                cable_current_limit_amps: None,
+            }),
+        );
+        assert_eq!(verdicts(&s)[0].headline, "Charging only");
+    }
+
+    #[test]
+    fn dp_adapter_reads_as_display_not_usb2() {
+        let s = snap_dp(
+            true,
+            Transport::Usb2,
+            true,
+            vec![dev("USB-C To DP Cable", Transport::Usb2)],
+            EmarkerInfo::default(),
+            None,
+        );
+        let v = &verdicts(&s)[0];
+        assert_eq!(v.headline, "Display");
+        assert_eq!(v.data_blame, Blame::None);
+        assert!(v.data_line.contains("DisplayPort video"));
     }
 
     #[test]
