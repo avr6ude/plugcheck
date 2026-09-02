@@ -132,13 +132,27 @@ fn cards(p: &Port) -> Vec<VerdictCard> {
     }
 
     if p.dp_alt || p.display.is_some() {
+        let mut status = CardStatus::Ok;
         let mut text = match &p.display {
             Some(d) => {
                 let mut t = format!("Driving {}", d.name);
                 match (&d.pixels, d.hz) {
-                    (Some(px), Some(hz)) => t.push_str(&format!(" at {} @ {hz} Hz.", px.replace(" x ", " × "))),
+                    (Some(px), Some(hz)) => {
+                        t.push_str(&format!(" at {} @ {hz} Hz.", px.replace(" x ", " × ")))
+                    }
                     (Some(px), None) => t.push_str(&format!(" at {}.", px.replace(" x ", " × "))),
                     _ => t.push('.'),
+                }
+                if d.degraded {
+                    status = CardStatus::Warn;
+                    if let Some(nat) = &d.native_pixels {
+                        t.push_str(&format!(
+                            " Below the panel's native {}.",
+                            nat.replace(" x ", " × ")
+                        ));
+                    } else {
+                        t.push_str(" Running below native resolution.");
+                    }
                 }
                 t
             }
@@ -149,7 +163,7 @@ fn cards(p: &Port) -> Vec<VerdictCard> {
         }
         out.push(VerdictCard {
             kind: CardKind::Display,
-            status: CardStatus::Ok,
+            status,
             title: "Display".into(),
             text,
         });
@@ -392,6 +406,7 @@ mod tests {
             usb_version: None,
             class: None,
             vid_pid: None,
+            serial: None,
             is_hub: false,
             children: vec![],
         }

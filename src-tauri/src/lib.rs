@@ -1,6 +1,7 @@
 pub mod emarker;
 pub mod model;
 pub mod probe;
+pub mod settings;
 pub mod verdict;
 
 use std::collections::BTreeMap;
@@ -9,16 +10,18 @@ use std::time::Duration;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{Emitter, Manager, State};
+use tauri::{ActivationPolicy, Emitter, Manager, State};
+use tauri_plugin_autostart::{ManagerExt, MacosLauncher};
+use tauri_plugin_notification::NotificationExt;
 
 use crate::model::Snapshot;
 use crate::probe::UsbProbe;
-use crate::verdict::{verdicts, PortVerdict};
-
-const POLL_INTERVAL: Duration = Duration::from_secs(3);
+use crate::settings::Settings;
+use crate::verdict::{verdicts, Blame, PortVerdict};
 
 struct AppState {
     last: Mutex<Option<Snapshot>>,
+    settings: Mutex<Settings>,
     probe: Box<dyn UsbProbe>,
 }
 
@@ -30,19 +33,17 @@ fn changed(old: &Option<Snapshot>, new: &Snapshot) -> bool {
     }
 }
 
+fn device_total(p: &crate::model::Port) -> usize {
+    fn n(d: &crate::model::DeviceNode) -> usize {
+        1 + d.children.iter().map(n).sum::<usize>()
+    }
+    p.devices.iter().map(n).sum()
+}
+
 /// One-line status for the menu-bar tooltip.
 fn tray_summary(snap: &Snapshot) -> String {
     let active = snap.ports.iter().filter(|p| p.occupied).count();
-    let devices: usize = snap
-        .ports
-        .iter()
-        .map(|p| {
-            fn n(d: &crate::model::DeviceNode) -> usize {
-                1 + d.children.iter().map(n).sum::<usize>()
-            }
-            p.devices.iter().map(n).sum::<usize>()
-        })
-        .sum();
+    let devices: usize = snap.ports.iter().map(device_total).sum();
     let watts = snap
         .ports
         .iter()
@@ -52,12 +53,76 @@ fn tray_summary(snap: &Snapshot) -> String {
         if active == 1 { "" } else { "s" }
     );
     if devices > 0 {
-        s.push_str(&format!(", {devices} device{}", if devices == 1 { "" } else { "s" }));
+        s.push_str(&format!(
+            ", {devices} device{}",
+            if devices == 1 { "" } else { "s" }
+        ));
     }
     if let Some(w) = watts {
         s.push_str(&format!(", charging {w} W"));
     }
     s
+}
+
+/// Fire a notification for each meaningful change between two snapshots.
+fn notify_changes(app: &tauri::AppHandle, old: &Snapshot, new: &Snapshot) {
+    let vnew = verdicts(new);
+    for np in &new.ports {
+        let op = old.ports.iter().find(|p| p.id == np.id);
+        let was_occupied = op.map(|p| p.occupied).unwrap_or(false);
+        let label = np.id.replace("Port-", "").replace('@', " port ");
+
+        if np.occupied && !was_occupied {
+            let head = vnew
+                .iter()
+                .find(|v| v.port_id == np.id)
+                .map(|v| v.headline.clone())
+                .unwrap_or_else(|| "Device".into());
+            let _ = app
+                .notification()
+                .builder()
+                .title(format!("{label} — {head} connected"))
+                .show();
+        } else if !np.occupied && was_occupied {
+            let _ = app
+                .notification()
+                .builder()
+                .title(format!("{label} — disconnected"))
+                .show();
+        } else if np.occupied {
+            // a data bottleneck that wasn't there before
+            let now_bad = vnew
+                .iter()
+                .find(|v| v.port_id == np.id)
+                .map(|v| v.data_blame != Blame::None)
+                .unwrap_or(false);
+            let was_bad = op
+                .map(|p| verdicts(&one_port(p)))
+                .and_then(|v| v.into_iter().next())
+                .map(|v| v.data_blame != Blame::None)
+                .unwrap_or(false);
+            if now_bad && !was_bad {
+                let line = vnew
+                    .iter()
+                    .find(|v| v.port_id == np.id)
+                    .map(|v| v.data_line.clone())
+                    .unwrap_or_default();
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title(format!("{label} — data speed limited"))
+                    .body(line)
+                    .show();
+            }
+        }
+    }
+}
+
+fn one_port(p: &crate::model::Port) -> Snapshot {
+    Snapshot {
+        ports: vec![p.clone()],
+        captured_ms: 0,
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -78,13 +143,9 @@ fn make_probe() -> Box<dyn UsbProbe> {
 
 /// `plugcheck --json`: probe once, print `{ snapshot, verdicts }`, exit.
 pub fn print_json() {
-    let probe = make_probe();
-    match probe.snapshot() {
+    match make_probe().snapshot() {
         Ok(snap) => {
-            let out = serde_json::json!({
-                "snapshot": snap,
-                "verdicts": verdicts(&snap),
-            });
+            let out = serde_json::json!({ "snapshot": snap, "verdicts": verdicts(&snap) });
             println!("{}", serde_json::to_string_pretty(&out).unwrap());
         }
         Err(e) => {
@@ -94,12 +155,77 @@ pub fn print_json() {
     }
 }
 
+/// `plugcheck --text` / `--watch`: readable per-port summary.
+pub fn print_text() {
+    let snap = match make_probe().snapshot() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+    };
+    let v = verdicts(&snap);
+    for p in &snap.ports {
+        if !p.occupied {
+            println!("{}  —  empty", p.id);
+            continue;
+        }
+        let pv = v.iter().find(|x| x.port_id == p.id);
+        println!(
+            "\n{}  [{}]",
+            p.id,
+            pv.map(|x| x.headline.as_str()).unwrap_or("connected")
+        );
+        for c in pv.map(|x| x.cards.as_slice()).unwrap_or(&[]) {
+            println!("  {:<9} {}", format!("{:?}", c.kind).to_lowercase(), c.text);
+        }
+        for t in pv.map(|x| x.trust_flags.as_slice()).unwrap_or(&[]) {
+            println!("  ! {t}");
+        }
+        for d in &p.devices {
+            print_dev(d, 2);
+        }
+    }
+}
+
+fn print_dev(d: &crate::model::DeviceNode, indent: usize) {
+    let pad = " ".repeat(indent);
+    let mut meta = Vec::new();
+    if let Some(c) = &d.class {
+        meta.push(c.clone());
+    }
+    if let Some(v) = &d.vendor {
+        meta.push(v.clone());
+    }
+    if let Some(vp) = &d.vid_pid {
+        meta.push(vp.clone());
+    }
+    println!("{pad}- {} ({})", d.name, meta.join(" · "));
+    for c in &d.children {
+        print_dev(c, indent + 2);
+    }
+}
+
 fn show_main(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
     }
+}
+
+fn apply_settings(app: &tauri::AppHandle, s: &Settings) {
+    let _ = app.set_activation_policy(if s.menu_bar_only {
+        ActivationPolicy::Accessory
+    } else {
+        ActivationPolicy::Regular
+    });
+    let mgr = app.autolaunch();
+    let _ = if s.launch_at_login {
+        mgr.enable()
+    } else {
+        mgr.disable()
+    };
 }
 
 #[tauri::command]
@@ -128,21 +254,40 @@ fn engineer_dump(
         .ok_or_else(|| format!("no port {port_id}"))
 }
 
+#[tauri::command]
+fn get_settings(state: State<AppState>) -> Settings {
+    state.settings.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn set_settings(app: tauri::AppHandle, state: State<AppState>, next: Settings) -> Result<(), String> {
+    settings::save(&app, &next)?;
+    apply_settings(&app, &next);
+    *state.settings.lock().unwrap() = next;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = env_logger::try_init();
 
     tauri::Builder::default()
-        .manage(AppState {
-            last: Mutex::new(None),
-            probe: make_probe(),
-        })
-        .invoke_handler(tauri::generate_handler![
-            get_snapshot,
-            get_verdicts,
-            engineer_dump
-        ])
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
+            let handle = app.handle().clone();
+            let cfg = settings::load(&handle);
+            apply_settings(&handle, &cfg);
+
+            app.manage(AppState {
+                last: Mutex::new(None),
+                settings: Mutex::new(cfg),
+                probe: make_probe(),
+            });
+
             // --- menu-bar tray ---
             let open_i = MenuItem::with_id(app, "open", "Open plugcheck", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -171,23 +316,44 @@ pub fn run() {
                 .build(app)?;
 
             // --- poll thread ---
-            let handle = app.handle().clone();
+            let poll_handle = handle.clone();
             std::thread::spawn(move || loop {
-                std::thread::sleep(POLL_INTERVAL);
-                let state = handle.state::<AppState>();
+                let secs = poll_handle
+                    .state::<AppState>()
+                    .settings
+                    .lock()
+                    .unwrap()
+                    .poll_secs();
+                std::thread::sleep(Duration::from_secs(secs));
+
+                let state = poll_handle.state::<AppState>();
                 let Ok(snap) = state.probe.snapshot() else {
                     continue;
                 };
                 let _ = tray.set_tooltip(Some(tray_summary(&snap)));
+
                 let mut last = state.last.lock().unwrap();
                 if changed(&last, &snap) {
-                    *last = Some(snap.clone());
+                    let prev = last.replace(snap.clone());
+                    let notify = state.settings.lock().unwrap().notifications;
                     drop(last);
-                    let _ = handle.emit("snapshot-changed", snap);
+                    if notify {
+                        if let Some(prev) = prev {
+                            notify_changes(&poll_handle, &prev, &snap);
+                        }
+                    }
+                    let _ = poll_handle.emit("snapshot-changed", snap);
                 }
             });
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            get_snapshot,
+            get_verdicts,
+            engineer_dump,
+            get_settings,
+            set_settings
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -215,7 +381,15 @@ mod tests {
 
     #[test]
     fn tray_summary_reads_well() {
-        let s = empty(0);
-        assert_eq!(tray_summary(&s), "plugcheck — 0 ports in use");
+        assert_eq!(tray_summary(&empty(0)), "plugcheck — 0 ports in use");
+    }
+
+    #[test]
+    fn settings_poll_clamped() {
+        let mut s = Settings::default();
+        s.poll_secs = 0;
+        assert_eq!(s.poll_secs(), 1);
+        s.poll_secs = 999;
+        assert_eq!(s.poll_secs(), 60);
     }
 }

@@ -58,6 +58,7 @@
             {#if n.vendor}{n.class ? " · " : ""}{n.vendor}{/if}
             {#if n.usb_version}{" · " + n.usb_version}{/if}
             {#if n.vid_pid}<span class="mono"> · {n.vid_pid}</span>{/if}
+            {#if n.serial}<span class="mono"> · SN {n.serial}</span>{/if}
           </div>
         </div>
       </div>

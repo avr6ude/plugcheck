@@ -17,6 +17,7 @@ export interface DeviceNode {
   usb_version: string | null;
   class: string | null;
   vid_pid: string | null;
+  serial: string | null;
   is_hub: boolean;
   children: DeviceNode[];
 }
@@ -45,7 +46,13 @@ export interface Port {
   overcurrent_count: number | null;
   hpd: boolean;
   dp_alt: boolean;
-  display: { name: string; pixels: string | null; hz: number | null } | null;
+  display: {
+    name: string;
+    pixels: string | null;
+    native_pixels: string | null;
+    hz: number | null;
+    degraded: boolean;
+  } | null;
   emarker: Emarker;
   charger: Charger | null;
   devices: DeviceNode[];
@@ -106,4 +113,36 @@ export async function startPolling(): Promise<UnlistenFn> {
 
 export function verdictFor(id: string): PortVerdict | undefined {
   return store.verdicts.find((v) => v.port_id === id);
+}
+
+export interface Settings {
+  notifications: boolean;
+  poll_secs: number;
+  launch_at_login: boolean;
+  menu_bar_only: boolean;
+  hide_empty: boolean;
+}
+
+export const settings = $state<Settings>({
+  notifications: true,
+  poll_secs: 3,
+  launch_at_login: false,
+  menu_bar_only: false,
+  hide_empty: false,
+});
+
+export async function loadSettings(): Promise<void> {
+  try {
+    Object.assign(settings, await invoke<Settings>("get_settings"));
+  } catch {
+    /* keep defaults */
+  }
+}
+
+export async function saveSettings(): Promise<void> {
+  try {
+    await invoke("set_settings", { next: { ...settings } });
+  } catch (e) {
+    store.error = String(e);
+  }
 }

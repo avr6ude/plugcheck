@@ -85,6 +85,7 @@ pub struct DeviceNode {
     pub class: Option<String>,
     /// "05ac:8104" style vendor:product id.
     pub vid_pid: Option<String>,
+    pub serial: Option<String>,
     pub is_hub: bool,
     pub children: Vec<DeviceNode>,
 }
@@ -92,9 +93,13 @@ pub struct DeviceNode {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DisplayInfo {
     pub name: String,
-    /// Native pixel resolution, e.g. "2560 x 1440".
+    /// Current resolution, e.g. "2560 x 1440".
     pub pixels: Option<String>,
+    /// Native panel resolution, if it differs from `pixels`.
+    pub native_pixels: Option<String>,
     pub hz: Option<u32>,
+    /// Running below the panel's native resolution.
+    pub degraded: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

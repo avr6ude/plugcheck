@@ -1,38 +1,37 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { store, startPolling, refresh, verdictFor } from "$lib/snapshot.svelte";
+  import {
+    store,
+    startPolling,
+    refresh,
+    verdictFor,
+    settings,
+    loadSettings,
+    saveSettings,
+  } from "$lib/snapshot.svelte";
   import PortCard from "$lib/PortCard.svelte";
   import EngineerPanel from "$lib/EngineerPanel.svelte";
+  import SettingsPanel from "$lib/SettingsPanel.svelte";
 
   let engineerPort = $state<string | null>(null);
-  let hideEmpty = $state(load("plugcheck.hideEmpty", false));
-
-  $effect(() => save("plugcheck.hideEmpty", hideEmpty));
+  let showSettings = $state(false);
 
   onMount(() => {
     let unlisten: (() => void) | undefined;
+    loadSettings();
     startPolling().then((u) => (unlisten = u));
     return () => unlisten?.();
   });
 
   const ports = $derived(store.snapshot?.ports ?? []);
-  const shown = $derived(hideEmpty ? ports.filter((p) => p.occupied) : ports);
+  const shown = $derived(
+    settings.hide_empty ? ports.filter((p) => p.occupied) : ports,
+  );
   const emptyCount = $derived(ports.filter((p) => !p.occupied).length);
 
-  function load(k: string, d: boolean): boolean {
-    try {
-      const v = localStorage.getItem(k);
-      return v == null ? d : v === "1";
-    } catch {
-      return d;
-    }
-  }
-  function save(k: string, v: boolean) {
-    try {
-      localStorage.setItem(k, v ? "1" : "0");
-    } catch {
-      /* private window / blocked */
-    }
+  function toggleHideEmpty() {
+    settings.hide_empty = !settings.hide_empty;
+    saveSettings();
   }
 </script>
 
@@ -42,14 +41,17 @@
       <h1>plugcheck</h1>
       <span>USB-C &amp; Thunderbolt inspector</span>
     </div>
-    <button class="refresh" onclick={refresh} disabled={store.loading} title="Refresh now">
-      {store.loading ? "…" : "↻"}
-    </button>
+    <div class="actions">
+      <button onclick={() => (showSettings = true)} title="Settings" aria-label="Settings">⚙</button>
+      <button onclick={refresh} disabled={store.loading} title="Refresh now">
+        {store.loading ? "…" : "↻"}
+      </button>
+    </div>
   </header>
 
   {#if emptyCount > 0}
     <label class="toggle">
-      <input type="checkbox" bind:checked={hideEmpty} />
+      <input type="checkbox" checked={settings.hide_empty} onchange={toggleHideEmpty} />
       Hide {emptyCount} empty port{emptyCount === 1 ? "" : "s"}
     </label>
   {/if}
@@ -80,6 +82,10 @@
 
   {#if engineerPort}
     <EngineerPanel portId={engineerPort} onClose={() => (engineerPort = null)} />
+  {/if}
+
+  {#if showSettings}
+    <SettingsPanel onClose={() => (showSettings = false)} />
   {/if}
 </main>
 
@@ -138,7 +144,11 @@
     color: var(--muted);
     font-size: 0.75rem;
   }
-  .refresh {
+  .actions {
+    display: flex;
+    gap: 0.4rem;
+  }
+  .actions button {
     width: 30px;
     height: 30px;
     border: 1px solid var(--line);
@@ -148,7 +158,7 @@
     font-size: 0.95rem;
     cursor: pointer;
   }
-  .refresh:disabled {
+  .actions button:disabled {
     opacity: 0.5;
     cursor: default;
   }

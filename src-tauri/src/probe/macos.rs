@@ -58,6 +58,7 @@ mod keys {
     pub const USB_BCD: &str = "bcdUSB"; // BCD USB spec, e.g. 0x0320
     pub const USB_VID: &str = "idVendor";
     pub const USB_PID: &str = "idProduct";
+    pub const USB_SERIAL: &str = "kUSBSerialNumberString";
 }
 
 /// USB base-class code → human label (USB-IF class list, common subset).
@@ -347,6 +348,11 @@ fn usb_device_node(d: &plist::Dictionary) -> DeviceNode {
         usb_version,
         class,
         vid_pid,
+        serial: d
+            .get(keys::USB_SERIAL)
+            .and_then(Value::as_string)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string),
         is_hub,
         children,
     }
@@ -424,18 +430,44 @@ fn attach_displays(ports: &mut [Port], sp_json: &str) {
                             .or_else(|| d.get("_spdisplays_resolution"))
                             .and_then(|x| x.as_str())
                             .unwrap_or("");
-                        let pixels = d
+                        // current resolution (from the "W x H @ R Hz" string)
+                        let pixels = res
+                            .split('@')
+                            .next()
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty());
+                        // native panel resolution
+                        let native = d
                             .get("_spdisplays_pixels")
                             .and_then(|x| x.as_str())
                             .map(str::to_string)
-                            .or_else(|| res.split('@').next().map(|s| s.trim().to_string()))
                             .filter(|s| !s.is_empty());
                         let hz = res
                             .split('@')
                             .nth(1)
                             .and_then(|s| s.trim().trim_end_matches("Hz").trim().parse::<f64>().ok())
                             .map(|f| f.round() as u32);
-                        out.push(crate::model::DisplayInfo { name, pixels, hz });
+                        let area = |s: &str| -> Option<u64> {
+                            let mut it = s.split('x');
+                            let w: u64 = it.next()?.trim().parse().ok()?;
+                            let h: u64 = it.next()?.trim().parse().ok()?;
+                            Some(w * h)
+                        };
+                        let degraded = match (&pixels, &native) {
+                            (Some(cur), Some(nat)) => matches!(
+                                (area(cur), area(nat)),
+                                (Some(c), Some(n)) if c + c / 20 < n
+                            ),
+                            _ => false,
+                        };
+                        let native_pixels = native.filter(|n| Some(n) != pixels.as_ref());
+                        out.push(crate::model::DisplayInfo {
+                            name,
+                            pixels,
+                            native_pixels,
+                            hz,
+                            degraded,
+                        });
                     }
                 }
                 for x in m.values() {
@@ -581,6 +613,7 @@ fn tb_node(v: &serde_json::Value) -> DeviceNode {
         usb_version: None,
         class: Some("Thunderbolt".into()),
         vid_pid: None,
+        serial: None,
         is_hub: false,
         children: v
             .get("_items")
