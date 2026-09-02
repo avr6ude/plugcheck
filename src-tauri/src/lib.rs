@@ -1,4 +1,5 @@
 pub mod emarker;
+pub mod history;
 pub mod model;
 pub mod probe;
 pub mod settings;
@@ -229,8 +230,9 @@ fn apply_settings(app: &tauri::AppHandle, s: &Settings) {
 }
 
 #[tauri::command]
-fn get_snapshot(state: State<AppState>) -> Result<Snapshot, String> {
-    let snap = state.probe.snapshot().map_err(|e| e.to_string())?;
+fn get_snapshot(app: tauri::AppHandle, state: State<AppState>) -> Result<Snapshot, String> {
+    let mut snap = state.probe.snapshot().map_err(|e| e.to_string())?;
+    history::touch(&app, &mut snap);
     *state.last.lock().unwrap() = Some(snap.clone());
     Ok(snap)
 }
@@ -239,6 +241,11 @@ fn get_snapshot(state: State<AppState>) -> Result<Snapshot, String> {
 fn get_verdicts(state: State<AppState>) -> Result<Vec<PortVerdict>, String> {
     let snap = state.probe.snapshot().map_err(|e| e.to_string())?;
     Ok(verdicts(&snap))
+}
+
+#[tauri::command]
+fn rename_cable(app: tauri::AppHandle, sig: String, name: Option<String>) {
+    history::rename(&app, &sig, name);
 }
 
 #[tauri::command]
@@ -292,8 +299,11 @@ pub fn run() {
             let open_i = MenuItem::with_id(app, "open", "Open plugcheck", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open_i, &quit_i])?;
+            let tray_icon = tauri::image::Image::from_bytes(include_bytes!(
+                "../icons/tray@2x.png"
+            ))?;
             let tray = TrayIconBuilder::with_id("plugcheck")
-                .icon(app.default_window_icon().cloned().unwrap())
+                .icon(tray_icon)
                 .icon_as_template(true)
                 .tooltip("plugcheck")
                 .menu(&menu)
@@ -327,9 +337,10 @@ pub fn run() {
                 std::thread::sleep(Duration::from_secs(secs));
 
                 let state = poll_handle.state::<AppState>();
-                let Ok(snap) = state.probe.snapshot() else {
+                let Ok(mut snap) = state.probe.snapshot() else {
                     continue;
                 };
+                history::touch(&poll_handle, &mut snap);
                 let _ = tray.set_tooltip(Some(tray_summary(&snap)));
 
                 let mut last = state.last.lock().unwrap();
@@ -352,7 +363,8 @@ pub fn run() {
             get_verdicts,
             engineer_dump,
             get_settings,
-            set_settings
+            set_settings,
+            rename_cable
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

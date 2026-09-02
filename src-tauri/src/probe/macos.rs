@@ -461,12 +461,35 @@ fn attach_displays(ports: &mut [Port], sp_json: &str) {
                             _ => false,
                         };
                         let native_pixels = native.filter(|n| Some(n) != pixels.as_ref());
+                        let strip = |s: &str| {
+                            s.trim_start_matches("spdisplays_")
+                                .replace('_', " ")
+                                .to_string()
+                        };
+                        let sget = |k: &str| d.get(k).and_then(|x| x.as_str());
+                        let yes = |k: &str| sget(k) == Some("spdisplays_yes");
                         out.push(crate::model::DisplayInfo {
                             name,
                             pixels,
                             native_pixels,
                             hz,
                             degraded,
+                            connection: match conn {
+                                "" => None,
+                                c => Some(match c {
+                                    "spdisplays_displayport" => "DisplayPort".into(),
+                                    "spdisplays_hdmi" => "HDMI".into(),
+                                    "spdisplays_thunderbolt" => "Thunderbolt".into(),
+                                    "spdisplays_usbc" => "USB-C".into(),
+                                    other => strip(other),
+                                }),
+                            },
+                            depth: sget("spdisplays_depth").map(strip),
+                            hdr: yes("spdisplays_hdr")
+                                || sget("spdisplays_display_type")
+                                    .is_some_and(|t| t.contains("hdr") || t.contains("xdr")),
+                            mirrored: yes("spdisplays_mirror"),
+                            main: yes("spdisplays_main"),
                         });
                     }
                 }
@@ -532,17 +555,39 @@ fn attach_adapter(ports: &mut [Port], battery_plist: &str) {
         .map(|m| m as u32);
     let volts = d.get("AdapterVoltage").and_then(int_of).map(|mv| mv as f32 / 1000.0);
     let amps = d.get("Current").and_then(int_of).map(|ma| ma as f32 / 1000.0);
-    let profile_volts: Vec<u16> = d
+
+    let pdos: Vec<crate::model::Pdo> = d
         .get("UsbHvcMenu")
         .and_then(Value::as_array)
         .map(|a| {
             a.iter()
                 .filter_map(|p| p.as_dictionary())
-                .filter_map(|p| p.get("MaxVoltage").and_then(int_of))
-                .map(|mv| (mv / 1000) as u16)
+                .filter_map(|p| {
+                    let mv = p.get("MaxVoltage").and_then(int_of)?;
+                    let ma = p.get("MaxCurrent").and_then(int_of)?;
+                    let v = (mv / 1000) as u16;
+                    let a = ma as f32 / 1000.0;
+                    Some(crate::model::Pdo {
+                        volts: v,
+                        amps: a,
+                        watts: (v as f32 * a).round() as u16,
+                    })
+                })
                 .collect()
         })
         .unwrap_or_default();
+    let profile_volts: Vec<u16> = pdos.iter().map(|p| p.volts).collect();
+
+    // live power into the battery from AppleSmartBattery instantaneous readings
+    let live_watts = match (
+        bat.get("Amperage").and_then(|v| v.as_signed_integer()),
+        bat.get("Voltage").and_then(int_of),
+    ) {
+        (Some(ma), Some(mv)) if ma != 0 => {
+            Some((ma.unsigned_abs() as f32 / 1000.0) * (mv as f32 / 1000.0))
+        }
+        _ => None,
+    };
 
     let charger = Charger {
         negotiated_volts: volts,
@@ -552,7 +597,9 @@ fn attach_adapter(ports: &mut [Port], battery_plist: &str) {
         fully_charged,
         battery_percent,
         minutes_to_full,
+        live_watts,
         profile_volts,
+        pdos,
         cable_current_limit_amps: None,
     };
 
@@ -718,6 +765,8 @@ fn port_from_node(d: &plist::Dictionary) -> Port {
         hpd: b(keys::HPD).unwrap_or(false),
         dp_alt,
         display: None,
+        history_sig: None,
+        history: None,
         emarker,
         charger: None,
         devices: Vec::new(),

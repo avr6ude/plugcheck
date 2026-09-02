@@ -100,6 +100,29 @@ pub struct DisplayInfo {
     pub hz: Option<u32>,
     /// Running below the panel's native resolution.
     pub degraded: bool,
+    /// "DisplayPort", "HDMI", … (connection type, prefix stripped).
+    pub connection: Option<String>,
+    /// Colour depth label, e.g. "30-Bit Color (ARGB2101010)".
+    pub depth: Option<String>,
+    pub hdr: bool,
+    pub mirrored: bool,
+    pub main: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct HistoryEntry {
+    pub name: Option<String>,
+    pub count: u32,
+    /// ISO-ish date, e.g. "2026-08-20".
+    pub first_seen: String,
+    pub last_seen: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Pdo {
+    pub volts: u16,
+    pub amps: f32,
+    pub watts: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -112,8 +135,12 @@ pub struct Charger {
     pub fully_charged: bool,
     pub battery_percent: Option<u8>,
     pub minutes_to_full: Option<u32>,
+    /// Live power flowing to the battery right now, in watts.
+    pub live_watts: Option<f32>,
     /// Voltages the adapter advertises (its PDO menu), e.g. [5, 9, 15, 20].
     pub profile_volts: Vec<u16>,
+    /// Full PD contract menu: every advertised voltage/current/power step.
+    pub pdos: Vec<Pdo>,
     /// Cable's current cap from its e-marker, for bottleneck blame.
     pub cable_current_limit_amps: Option<u8>,
 }
@@ -147,6 +174,10 @@ pub struct Port {
     pub dp_alt: bool,
     /// The external monitor this port is driving, if any.
     pub display: Option<DisplayInfo>,
+    /// Stable signature for this cable/dock, for the history store.
+    pub history_sig: Option<String>,
+    /// How often this cable/dock has been seen before.
+    pub history: Option<HistoryEntry>,
     pub emarker: EmarkerInfo,
     pub charger: Option<Charger>,
     pub devices: Vec<DeviceNode>,
@@ -204,6 +235,8 @@ mod tests {
                 hpd: false,
                 dp_alt: false,
                 display: None,
+            history_sig: None,
+            history: None,
                 emarker: EmarkerInfo {
                     vendor_id: Some(0x05ac),
                     vendor_name: Some("Apple".into()),

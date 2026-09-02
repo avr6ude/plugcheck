@@ -17,11 +17,13 @@ fn main() {
         plugcheck_lib::print_json();
         return;
     }
-    if has("--watch") {
+    if has("--watch") || has("--dashboard") {
+        let period = if has("--dashboard") { 1 } else { 2 };
         loop {
             print!("\x1b[2J\x1b[H"); // clear
+            println!("plugcheck — live  (Ctrl-C to quit)\n");
             plugcheck_lib::print_text();
-            std::thread::sleep(std::time::Duration::from_secs(2));
+            std::thread::sleep(std::time::Duration::from_secs(period));
         }
     }
     if has("--text") || has("-t") {

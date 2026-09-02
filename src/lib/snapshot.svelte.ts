@@ -21,6 +21,11 @@ export interface DeviceNode {
   is_hub: boolean;
   children: DeviceNode[];
 }
+export interface Pdo {
+  volts: number;
+  amps: number;
+  watts: number;
+}
 export interface Charger {
   negotiated_volts: number | null;
   negotiated_amps: number | null;
@@ -29,7 +34,9 @@ export interface Charger {
   fully_charged: boolean;
   battery_percent: number | null;
   minutes_to_full: number | null;
+  live_watts: number | null;
   profile_volts: number[];
+  pdos: Pdo[];
   cable_current_limit_amps: number | null;
 }
 export interface Port {
@@ -46,12 +53,24 @@ export interface Port {
   overcurrent_count: number | null;
   hpd: boolean;
   dp_alt: boolean;
+  history_sig: string | null;
+  history: {
+    name: string | null;
+    count: number;
+    first_seen: string;
+    last_seen: string;
+  } | null;
   display: {
     name: string;
     pixels: string | null;
     native_pixels: string | null;
     hz: number | null;
     degraded: boolean;
+    connection: string | null;
+    depth: string | null;
+    hdr: boolean;
+    mirrored: boolean;
+    main: boolean;
   } | null;
   emarker: Emarker;
   charger: Charger | null;
@@ -113,6 +132,15 @@ export async function startPolling(): Promise<UnlistenFn> {
 
 export function verdictFor(id: string): PortVerdict | undefined {
   return store.verdicts.find((v) => v.port_id === id);
+}
+
+export async function renameCable(sig: string, name: string | null): Promise<void> {
+  try {
+    await invoke("rename_cable", { sig, name });
+    await refresh();
+  } catch (e) {
+    store.error = String(e);
+  }
 }
 
 export interface Settings {

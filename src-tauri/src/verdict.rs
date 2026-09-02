@@ -138,11 +138,25 @@ fn cards(p: &Port) -> Vec<VerdictCard> {
                 let mut t = format!("Driving {}", d.name);
                 match (&d.pixels, d.hz) {
                     (Some(px), Some(hz)) => {
-                        t.push_str(&format!(" at {} @ {hz} Hz.", px.replace(" x ", " × ")))
+                        t.push_str(&format!(" at {} @ {hz} Hz", px.replace(" x ", " × ")))
                     }
-                    (Some(px), None) => t.push_str(&format!(" at {}.", px.replace(" x ", " × "))),
-                    _ => t.push('.'),
+                    (Some(px), None) => t.push_str(&format!(" at {}", px.replace(" x ", " × "))),
+                    _ => {}
                 }
+                let mut extra: Vec<String> = Vec::new();
+                if let Some(c) = &d.connection {
+                    extra.push(format!("over {c}"));
+                }
+                if d.hdr {
+                    extra.push("HDR".into());
+                }
+                if d.mirrored {
+                    extra.push("mirrored".into());
+                }
+                if !extra.is_empty() {
+                    t.push_str(&format!(" ({})", extra.join(", ")));
+                }
+                t.push('.');
                 if d.degraded {
                     status = CardStatus::Warn;
                     if let Some(nat) = &d.native_pixels {
@@ -365,10 +379,22 @@ fn charging_line(p: &Port) -> Option<String> {
         t
     };
 
+    if c.is_charging {
+        if let Some(lw) = c.live_watts {
+            s.push_str(&format!(" Now {lw:.0} W into the battery."));
+        }
+    }
     if p.emarker.current_amps == Some(3) && c.watts.map_or(true, |w| w > 60) {
         s.push_str(" The cable's 3 A rating limits this to ~60 W.");
     }
-    if !c.profile_volts.is_empty() {
+    if !c.pdos.is_empty() {
+        let v: Vec<String> = c
+            .pdos
+            .iter()
+            .map(|p| format!("{} V/{:.1} A", p.volts, p.amps))
+            .collect();
+        s.push_str(&format!(" Adapter profiles: {}.", v.join(", ")));
+    } else if !c.profile_volts.is_empty() {
         let v: Vec<String> = c.profile_volts.iter().map(|v| format!("{v} V")).collect();
         s.push_str(&format!(" Adapter offers {}.", v.join(", ")));
     }
@@ -447,6 +473,8 @@ mod tests {
                 hpd: false,
                 dp_alt,
                 display: None,
+                history_sig: None,
+                history: None,
                 emarker,
                 charger,
                 devices,
@@ -517,7 +545,9 @@ mod tests {
             fully_charged: false,
             battery_percent: Some(58),
             minutes_to_full: Some(129),
+            live_watts: Some(24.0),
                 profile_volts: vec![],
+            pdos: vec![],
                 negotiated_volts: None,
                 negotiated_amps: Some(3.0),
                 cable_current_limit_amps: None,
@@ -579,7 +609,9 @@ mod tests {
             fully_charged: false,
             battery_percent: Some(58),
             minutes_to_full: Some(129),
+            live_watts: Some(24.0),
                 profile_volts: vec![],
+            pdos: vec![],
                 negotiated_volts: Some(20.0),
                 negotiated_amps: Some(5.0),
                 cable_current_limit_amps: Some(3),
@@ -602,7 +634,9 @@ mod tests {
             fully_charged: false,
             battery_percent: Some(58),
             minutes_to_full: Some(129),
+            live_watts: Some(24.0),
                 profile_volts: vec![],
+            pdos: vec![],
                 negotiated_volts: Some(20.0),
                 negotiated_amps: Some(4.5),
                 cable_current_limit_amps: Some(5),
@@ -675,7 +709,9 @@ mod tests {
             fully_charged: false,
             battery_percent: Some(58),
             minutes_to_full: Some(129),
+            live_watts: Some(24.0),
                 profile_volts: vec![],
+            pdos: vec![],
                 negotiated_volts: Some(20.0),
                 negotiated_amps: Some(4.5),
                 cable_current_limit_amps: Some(5),
