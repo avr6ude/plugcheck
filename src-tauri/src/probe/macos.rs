@@ -38,9 +38,14 @@ mod keys {
     pub const OPTICAL_CABLE: &str = "OpticalCable";
     pub const TRANSPORTS_ACTIVE: &str = "TransportsActive"; // e.g. ["CC","USB3","DisplayPort"]
     pub const TRANSPORTS_SUPPORTED: &str = "TransportsSupported";
+    pub const TRANSPORTS_PROVISIONED: &str = "TransportsProvisioned";
     pub const SUPERSPEED_ACTIVE: &str = "IOAccessoryUSBSuperSpeedActive";
     pub const CURRENT_LIMITS: &str = "IOAccessoryPowerCurrentLimits"; // [mA; 5]
     pub const VENDOR_ID: &str = "Vendor ID";
+    pub const CONNECTION_COUNT: &str = "ConnectionCount";
+    pub const PLUG_EVENTS: &str = "Plug Event Count";
+    pub const OVERCURRENT: &str = "Overcurrent Count";
+    pub const HPD: &str = "HPDAsserted";
 
     // IOUSB device
     pub const USB_DEVICE_CLASS: &str = "IOUSBHostDevice";
@@ -51,6 +56,33 @@ mod keys {
     pub const USB_DEVICE_CLASS_NUM: &str = "bDeviceClass"; // 9 = hub
     pub const USB_LOCATION: &str = "locationID"; // int; >>24 == bus id
     pub const USB_BCD: &str = "bcdUSB"; // BCD USB spec, e.g. 0x0320
+    pub const USB_VID: &str = "idVendor";
+    pub const USB_PID: &str = "idProduct";
+}
+
+/// USB base-class code → human label (USB-IF class list, common subset).
+fn usb_class_label(code: i64) -> Option<&'static str> {
+    Some(match code {
+        1 => "Audio",
+        2 => "Communications",
+        3 => "HID",
+        5 => "Physical",
+        6 => "Imaging",
+        7 => "Printer",
+        8 => "Mass storage",
+        9 => "Hub",
+        10 => "CDC data",
+        11 => "Smart card",
+        13 => "Content security",
+        14 => "Video",
+        16 => "Audio/Video",
+        0xdc => "Diagnostic",
+        0xe0 => "Wireless",
+        0xef => "Miscellaneous",
+        0xfe => "Application-specific",
+        0xff => "Vendor-specific",
+        _ => return None,
+    })
 }
 
 pub struct MacosProbe;
@@ -286,6 +318,21 @@ fn usb_device_node(d: &plist::Dictionary) -> DeviceNode {
         }
     });
 
+    let class = d
+        .get(keys::USB_DEVICE_CLASS_NUM)
+        .and_then(|v| v.as_signed_integer())
+        .filter(|&c| c != 0) // 0 = defined at interface level, not useful here
+        .and_then(usb_class_label)
+        .map(str::to_string);
+
+    let vid_pid = match (
+        d.get(keys::USB_VID).and_then(int_of),
+        d.get(keys::USB_PID).and_then(int_of),
+    ) {
+        (Some(v), Some(p)) => Some(format!("{v:04x}:{p:04x}")),
+        _ => None,
+    };
+
     DeviceNode {
         name,
         vendor: d
@@ -294,6 +341,8 @@ fn usb_device_node(d: &plist::Dictionary) -> DeviceNode {
             .map(str::to_string),
         speed,
         usb_version,
+        class,
+        vid_pid,
         is_hub,
         children,
     }
@@ -350,19 +399,32 @@ fn attach_adapter(ports: &mut [Port], battery_plist: &str) {
     let Ok(root) = Value::from_reader_xml(Cursor::new(battery_plist.as_bytes())) else {
         return;
     };
-    let mut details = None;
+    let mut battery = None;
     for n in Walk::new(&root) {
-        if let Some(d) = n.as_dictionary().and_then(|d| d.get("AdapterDetails")).and_then(Value::as_dictionary) {
-            details = Some(d.clone());
-            break;
+        if let Some(b) = n.as_dictionary() {
+            if b.get("AdapterDetails").and_then(Value::as_dictionary).is_some() {
+                battery = Some(b.clone());
+                break;
+            }
         }
     }
-    let Some(d) = details else { return };
+    let Some(bat) = battery else { return };
+    let d = bat.get("AdapterDetails").and_then(Value::as_dictionary).unwrap();
 
     let watts = d.get("Watts").and_then(int_of).map(|w| w as u16);
     if watts.unwrap_or(0) == 0 {
         return; // no adapter connected
     }
+
+    let is_charging = bat.get("IsCharging").and_then(Value::as_boolean).unwrap_or(false);
+    let fully_charged = bat.get("FullyCharged").and_then(Value::as_boolean).unwrap_or(false);
+    let battery_percent = bat.get("CurrentCapacity").and_then(int_of).map(|c| c.min(100) as u8);
+    let minutes_to_full = bat
+        .get("AvgTimeToFull")
+        .or_else(|| bat.get("TimeRemaining"))
+        .and_then(int_of)
+        .filter(|&m| is_charging && m > 0 && m < 60_000)
+        .map(|m| m as u32);
     let volts = d.get("AdapterVoltage").and_then(int_of).map(|mv| mv as f32 / 1000.0);
     let amps = d.get("Current").and_then(int_of).map(|ma| ma as f32 / 1000.0);
     let profile_volts: Vec<u16> = d
@@ -381,7 +443,10 @@ fn attach_adapter(ports: &mut [Port], battery_plist: &str) {
         negotiated_volts: volts,
         negotiated_amps: amps,
         watts,
-        is_charging: true,
+        is_charging,
+        fully_charged,
+        battery_percent,
+        minutes_to_full,
         profile_volts,
         cable_current_limit_amps: None,
     };
@@ -441,6 +506,8 @@ fn tb_node(v: &serde_json::Value) -> DeviceNode {
             speed
         },
         usb_version: None,
+        class: Some("Thunderbolt".into()),
+        vid_pid: None,
         is_hub: false,
         children: v
             .get("_items")
@@ -471,6 +538,22 @@ fn port_from_node(d: &plist::Dictionary) -> Port {
         .and_then(Value::as_array)
         .map(|a| a.iter().filter_map(Value::as_string).map(str::to_string).collect())
         .unwrap_or_default();
+    let provisioned_raw: Vec<String> = d
+        .get(keys::TRANSPORTS_PROVISIONED)
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_string).map(str::to_string).collect())
+        .unwrap_or_default();
+
+    let cable_kind = if b(keys::OPTICAL_CABLE).unwrap_or(false) {
+        "optical"
+    } else if b(keys::ACTIVE_CABLE).unwrap_or(false) {
+        "active"
+    } else if occupied {
+        "passive"
+    } else {
+        "unknown"
+    }
+    .to_string();
 
     let current_limits: Vec<u64> = d
         .get(keys::CURRENT_LIMITS)
@@ -521,6 +604,12 @@ fn port_from_node(d: &plist::Dictionary) -> Port {
         orientation: i(keys::ORIENTATION).map(|v| v as u8),
         active_transport: emarker::transport_from_active(&active),
         supported: friendly_transports(&supported_raw),
+        provisioned: friendly_transports(&provisioned_raw),
+        cable_kind,
+        connection_count: i(keys::CONNECTION_COUNT).map(|v| v as u32),
+        plug_events: i(keys::PLUG_EVENTS).map(|v| v as u32),
+        overcurrent_count: i(keys::OVERCURRENT).map(|v| v as u32),
+        hpd: b(keys::HPD).unwrap_or(false),
         dp_alt,
         emarker,
         charger: None,

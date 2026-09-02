@@ -49,8 +49,10 @@
         {#if collapsible && !open[key]}
           <span class="count">{subtreeCount(n)} device{subtreeCount(n) === 1 ? "" : "s"}</span>
         {/if}
+        {#if n.class}<span class="tag">{n.class}</span>{/if}
         {#if n.vendor}<span class="dim">{n.vendor}</span>{/if}
         {#if n.usb_version}<span class="dim">{n.usb_version}</span>{/if}
+        {#if n.vid_pid}<span class="mono">{n.vid_pid}</span>{/if}
         {#if speedLabel(n.speed)}<span class="speed">{speedLabel(n.speed)}</span>{/if}
       </div>
       {#if hasKids && (open[key] || !n.is_hub)}
@@ -106,9 +108,21 @@
   }
   .count,
   .dim,
-  .speed {
+  .speed,
+  .mono {
     color: var(--muted);
     font-size: 0.76rem;
+  }
+  .mono {
+    font-family: ui-monospace, monospace;
+    font-size: 0.72rem;
+  }
+  .tag {
+    font-size: 0.68rem;
+    padding: 0.02rem 0.32rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--muted);
   }
   .speed {
     margin-left: auto;

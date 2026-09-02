@@ -104,11 +104,21 @@ fn cards(p: &Port) -> Vec<VerdictCard> {
     let dp_only = p.dp_alt && dev.rank() <= Transport::Usb2.rank();
 
     if !p.supported.is_empty() {
+        let mut text = format!("Handles {}.", p.supported.join(", "));
+        match p.cable_kind.as_str() {
+            "active" => text.push_str(" Active cable."),
+            "optical" => text.push_str(" Optical cable."),
+            _ => {}
+        }
+        // DisplayPort negotiated on the port but no video flowing.
+        if p.provisioned.iter().any(|t| t == "DisplayPort") && !p.dp_alt {
+            text.push_str(" DisplayPort is negotiated but no display is active.");
+        }
         out.push(VerdictCard {
             kind: CardKind::Port,
             status: CardStatus::Idle,
             title: "Port".into(),
-            text: format!("Handles {}.", p.supported.join(", ")),
+            text,
         });
     }
 
@@ -295,15 +305,42 @@ fn one(p: &Port) -> PortVerdict {
 
 // --- charging + trust (plan Task 8) ---
 
+fn fmt_minutes(m: u32) -> String {
+    if m < 60 {
+        format!("{m} min")
+    } else {
+        format!("{}h {:02}m", m / 60, m % 60)
+    }
+}
+
 fn charging_line(p: &Port) -> Option<String> {
     let c = p.charger.as_ref()?;
-    let mut s = match (c.watts, c.negotiated_volts, c.negotiated_amps) {
-        (Some(w), Some(v), Some(a)) => format!("Charging at {w} W ({v:.0} V / {a:.1} A)."),
-        (Some(w), _, _) => format!("Charging at {w} W."),
-        (None, Some(v), Some(a)) => format!("Charging at ~{:.0} W ({v:.0} V / {a:.1} A).", v * a),
-        (None, None, Some(a)) => format!("Charging (~{a:.1} A, voltage unavailable)."),
-        _ => "Charging (wattage unavailable).".into(),
+    let vi = match (c.negotiated_volts, c.negotiated_amps) {
+        (Some(v), Some(a)) => format!(" ({v:.0} V / {a:.1} A)"),
+        _ => String::new(),
     };
+
+    let mut s = if c.fully_charged || !c.is_charging {
+        match c.watts {
+            Some(w) => format!("Adapter connected ({w} W{vi}) — battery full, not drawing power."),
+            None => "Adapter connected — battery is full.".into(),
+        }
+    } else {
+        let mut t = match (c.watts, c.negotiated_volts, c.negotiated_amps) {
+            (Some(w), _, _) => format!("Charging at {w} W{vi}"),
+            (None, Some(v), Some(a)) => format!("Charging at ~{:.0} W{vi}", v * a),
+            _ => "Charging (wattage unavailable)".into(),
+        };
+        if let Some(pct) = c.battery_percent {
+            t.push_str(&format!(" — battery {pct}%"));
+        }
+        if let Some(m) = c.minutes_to_full {
+            t.push_str(&format!(", full in {}", fmt_minutes(m)));
+        }
+        t.push('.');
+        t
+    };
+
     if p.emarker.current_amps == Some(3) && c.watts.map_or(true, |w| w > 60) {
         s.push_str(" The cable's 3 A rating limits this to ~60 W.");
     }
@@ -323,6 +360,12 @@ fn trust_flags(p: &Port) -> Vec<String> {
     if em.current_amps == Some(5) && em.max_speed == Transport::Usb2 {
         out.push("Cable claims 5 A but the link is only USB 2.0.".into());
     }
+    if let Some(n) = p.overcurrent_count.filter(|&n| n > 0) {
+        out.push(format!(
+            "This port has recorded {n} overcurrent event{}.",
+            if n == 1 { "" } else { "s" }
+        ));
+    }
     out
 }
 
@@ -337,6 +380,8 @@ mod tests {
             vendor: None,
             speed,
             usb_version: None,
+            class: None,
+            vid_pid: None,
             is_hub: false,
             children: vec![],
         }
@@ -369,6 +414,12 @@ mod tests {
                 orientation: Some(1),
                 active_transport: active,
                 supported: vec!["USB 3.2".into(), "USB 2.0".into()],
+                provisioned: vec![],
+                cable_kind: "passive".into(),
+                connection_count: Some(2),
+                plug_events: Some(4),
+                overcurrent_count: Some(0),
+                hpd: false,
                 dp_alt,
                 emarker,
                 charger,
@@ -437,6 +488,9 @@ mod tests {
             Some(Charger {
                 watts: None,
                 is_charging: true,
+            fully_charged: false,
+            battery_percent: Some(58),
+            minutes_to_full: Some(129),
                 profile_volts: vec![],
                 negotiated_volts: None,
                 negotiated_amps: Some(3.0),
@@ -496,6 +550,9 @@ mod tests {
             Some(Charger {
                 watts: None,
                 is_charging: true,
+            fully_charged: false,
+            battery_percent: Some(58),
+            minutes_to_full: Some(129),
                 profile_volts: vec![],
                 negotiated_volts: Some(20.0),
                 negotiated_amps: Some(5.0),
@@ -516,6 +573,9 @@ mod tests {
             Some(Charger {
                 watts: None,
                 is_charging: true,
+            fully_charged: false,
+            battery_percent: Some(58),
+            minutes_to_full: Some(129),
                 profile_volts: vec![],
                 negotiated_volts: Some(20.0),
                 negotiated_amps: Some(4.5),
@@ -586,6 +646,9 @@ mod tests {
             Some(Charger {
                 watts: None,
                 is_charging: true,
+            fully_charged: false,
+            battery_percent: Some(58),
+            minutes_to_full: Some(129),
                 profile_volts: vec![],
                 negotiated_volts: Some(20.0),
                 negotiated_amps: Some(4.5),

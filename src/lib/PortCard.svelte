@@ -33,6 +33,34 @@
       n.reduce((a, d) => a + 1 + walk(d.children), 0);
     return walk(port.devices);
   }
+
+  const cableKind = $derived(
+    { passive: "Passive", active: "Active", optical: "Optical" }[port.cable_kind] ?? null,
+  );
+
+  // key/value rows for the collapsible "Port details"
+  const details = $derived(
+    (
+      [
+        ["Cable", cableKind],
+        ["Orientation", port.orientation != null ? `Position ${port.orientation}` : null],
+        ["Negotiated", port.provisioned.length ? port.provisioned.join(", ") : null],
+        ["Display hot-plug", port.hpd ? "Detected" : null],
+        [
+          "Connections",
+          port.connection_count != null ? `${port.connection_count} since boot` : null,
+        ],
+        [
+          "Plug events",
+          port.plug_events != null ? `${port.plug_events} since boot` : null,
+        ],
+        [
+          "Overcurrent",
+          port.overcurrent_count != null ? `${port.overcurrent_count} recorded` : null,
+        ],
+      ] as [string, string | null][]
+    ).filter(([, v]) => v != null) as [string, string][],
+  );
 </script>
 
 <section class="port">
@@ -69,7 +97,18 @@
     </div>
   {/if}
 
-  <button class="eng" onclick={() => onEngineer(port.id)}>Engineer view ›</button>
+  {#if details.length}
+    <details class="more">
+      <summary>Port details</summary>
+      <dl>
+        {#each details as [k, v]}
+          <div><dt>{k}</dt><dd>{v}</dd></div>
+        {/each}
+      </dl>
+    </details>
+  {/if}
+
+  <button class="eng" onclick={() => onEngineer(port.id)}>Raw IOKit data ›</button>
 </section>
 
 <style>
@@ -181,6 +220,47 @@
   }
   .pip.idle {
     background: var(--muted);
+  }
+
+  .more {
+    margin-top: 0.6rem;
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--line);
+    font-size: 0.8rem;
+  }
+  .more summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    list-style: none;
+  }
+  .more summary::-webkit-details-marker {
+    display: none;
+  }
+  .more summary::before {
+    content: "▸ ";
+  }
+  .more[open] summary::before {
+    content: "▾ ";
+  }
+  .more dl {
+    margin: 0.45rem 0 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .more dl div {
+    display: flex;
+    gap: 0.6rem;
+  }
+  .more dt {
+    flex: none;
+    width: 7.5rem;
+    color: var(--muted);
+  }
+  .more dd {
+    margin: 0;
   }
 
   .eng {

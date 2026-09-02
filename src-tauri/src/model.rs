@@ -81,6 +81,10 @@ pub struct DeviceNode {
     pub speed: Transport,
     /// USB spec the device reports, e.g. "USB 3.2" (from `bcdUSB`).
     pub usb_version: Option<String>,
+    /// Human device class, e.g. "Mass storage", "HID", "Hub" (from `bDeviceClass`).
+    pub class: Option<String>,
+    /// "05ac:8104" style vendor:product id.
+    pub vid_pid: Option<String>,
     pub is_hub: bool,
     pub children: Vec<DeviceNode>,
 }
@@ -92,6 +96,9 @@ pub struct Charger {
     /// Adapter rated wattage (from `AppleSmartBattery.AdapterDetails.Watts`).
     pub watts: Option<u16>,
     pub is_charging: bool,
+    pub fully_charged: bool,
+    pub battery_percent: Option<u8>,
+    pub minutes_to_full: Option<u32>,
     /// Voltages the adapter advertises (its PDO menu), e.g. [5, 9, 15, 20].
     pub profile_volts: Vec<u16>,
     /// Cable's current cap from its e-marker, for bottleneck blame.
@@ -111,6 +118,18 @@ pub struct Port {
     /// Friendly names of what the port itself can carry, e.g.
     /// ["Thunderbolt / USB4", "DisplayPort", "USB 3.2", "USB 2.0"].
     pub supported: Vec<String>,
+    /// Friendly names of what has actually been negotiated/provisioned.
+    pub provisioned: Vec<String>,
+    /// "passive" / "active" / "optical" / "unknown" — known even without an e-marker.
+    pub cable_kind: String,
+    /// Times a device has connected on this port since boot.
+    pub connection_count: Option<u32>,
+    /// Physical plug/unplug events since boot.
+    pub plug_events: Option<u32>,
+    /// Recorded overcurrent faults on this port.
+    pub overcurrent_count: Option<u32>,
+    /// Display hot-plug detect asserted (a monitor is talking to the port).
+    pub hpd: bool,
     /// DisplayPort Alt Mode is carrying video on this port.
     pub dp_alt: bool,
     pub emarker: EmarkerInfo,
@@ -162,6 +181,12 @@ mod tests {
                 orientation: Some(1),
                 active_transport: Transport::Usb2,
                 supported: vec!["USB 3.2".into()],
+                provisioned: vec![],
+                cable_kind: "unknown".into(),
+                connection_count: Some(3),
+                plug_events: Some(5),
+                overcurrent_count: Some(0),
+                hpd: false,
                 dp_alt: false,
                 emarker: EmarkerInfo {
                     vendor_id: Some(0x05ac),

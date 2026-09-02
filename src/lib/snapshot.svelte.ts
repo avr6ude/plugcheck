@@ -15,6 +15,8 @@ export interface DeviceNode {
   vendor: string | null;
   speed: string;
   usb_version: string | null;
+  class: string | null;
+  vid_pid: string | null;
   is_hub: boolean;
   children: DeviceNode[];
 }
@@ -23,6 +25,9 @@ export interface Charger {
   negotiated_amps: number | null;
   watts: number | null;
   is_charging: boolean;
+  fully_charged: boolean;
+  battery_percent: number | null;
+  minutes_to_full: number | null;
   profile_volts: number[];
   cable_current_limit_amps: number | null;
 }
@@ -33,6 +38,12 @@ export interface Port {
   orientation: number | null;
   active_transport: string;
   supported: string[];
+  provisioned: string[];
+  cable_kind: string;
+  connection_count: number | null;
+  plug_events: number | null;
+  overcurrent_count: number | null;
+  hpd: boolean;
   dp_alt: boolean;
   emarker: Emarker;
   charger: Charger | null;
