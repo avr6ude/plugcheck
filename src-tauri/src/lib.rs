@@ -159,7 +159,9 @@ fn tray_menu(app: &tauri::AppHandle, snap: Option<&Snapshot>) -> tauri::Result<M
     }
     menu.append(&MenuItem::with_id(app, "refresh", "Refresh", true, Some("CmdOrCtrl+R"))?)?;
     menu.append(&MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?)?;
-    menu.append(&MenuItem::with_id(app, "updates", "Check for Updates…", true, None::<&str>)?)?;
+    if !sandboxed() {
+        menu.append(&MenuItem::with_id(app, "updates", "Check for Updates…", true, None::<&str>)?)?;
+    }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&MenuItem::with_id(app, "open", "Open plugcheck", true, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, "quit", "Quit plugcheck", true, Some("CmdOrCtrl+Q"))?)?;
@@ -387,6 +389,16 @@ fn open_release(url: String) -> Result<(), String> {
 
 const CLI_LINK: &str = "/usr/local/bin/plugcheck";
 
+/// App Store / TestFlight builds run sandboxed: no self-updates, no CLI symlink.
+pub fn sandboxed() -> bool {
+    std::env::var_os("APP_SANDBOX_CONTAINER_ID").is_some()
+}
+
+#[tauri::command]
+fn is_sandboxed() -> bool {
+    sandboxed()
+}
+
 /// Whether `plugcheck` on the PATH already points at this app.
 #[tauri::command]
 fn cli_installed() -> bool {
@@ -478,7 +490,7 @@ pub fn run() {
                         show_main(app);
                         let _ = app.emit("menu", event.id.as_ref());
                     }
-                    "updates" => {
+                    "updates" if !sandboxed() => {
                         let app = app.clone();
                         std::thread::spawn(move || check_updates(&app, true));
                     }
@@ -536,14 +548,14 @@ pub fn run() {
                 }
             });
 
-            // --- update check: at launch, then every 6 hours ---
+            // --- update check: at launch, then every 6 hours (the App Store updates sandboxed builds) ---
             let update_handle = handle.clone();
-            std::thread::spawn(move || loop {
+            if !sandboxed() { std::thread::spawn(move || loop {
                 if update_handle.state::<AppState>().settings.lock().unwrap().update_checks {
                     check_updates(&update_handle, false);
                 }
                 std::thread::sleep(Duration::from_secs(6 * 60 * 60));
-            });
+            }); }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -558,6 +570,7 @@ pub fn run() {
             open_release,
             cli_installed,
             install_cli,
+            is_sandboxed,
             app_version
         ])
         .run(tauri::generate_context!())

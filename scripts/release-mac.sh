@@ -13,13 +13,16 @@ W=src-tauri/target/release/notarize
 
 npm run tauri build -- --bundles app
 
-# Xcode only distributes archives, so wrap the Tauri .app in one.
-rm -rf "$W" && mkdir -p "$W/plugcheck.xcarchive/Products/Applications"
-APP="$W/plugcheck.xcarchive/Products/Applications/plugcheck.app"
+# Xcode only distributes archives, so wrap the Tauri .app in one. It lives in
+# Xcode's Archives folder because the Organizer only refreshes notarization
+# status for archives it knows about.
+ARCHIVE="$HOME/Library/Developer/Xcode/Archives/$(date +%Y-%m-%d)/plugcheck $VERSION.xcarchive"
+rm -rf "$W" "$ARCHIVE" && mkdir -p "$W" "$ARCHIVE/Products/Applications"
+APP="$ARCHIVE/Products/Applications/plugcheck.app"
 cp -R src-tauri/target/release/bundle/macos/plugcheck.app "$APP"
 # Notarization requires the hardened runtime; Xcode keeps these flags when it re-signs.
 codesign --force --deep --options runtime --identifier "$BUNDLE_ID" --sign - "$APP"
-cat > "$W/plugcheck.xcarchive/Info.plist" <<EOF
+cat > "$ARCHIVE/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -50,16 +53,16 @@ cat > "$W/ExportOptions.plist" <<EOF
 EOF
 
 # Sign with Developer ID and submit to Apple's notary service.
-xcodebuild -exportArchive -archivePath "$W/plugcheck.xcarchive" -exportOptionsPlist "$W/ExportOptions.plist" \
+xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$W/ExportOptions.plist" \
   -exportPath "$W/export" -allowProvisioningUpdates
 
 # Wait for the notarized, stapled app (usually a few minutes).
 for _ in $(seq 1 90); do
-  xcodebuild -exportNotarizedApp -archivePath "$W/plugcheck.xcarchive" -exportPath "$W/notarized" >/dev/null 2>&1 && break
+  xcodebuild -exportNotarizedApp -archivePath "$ARCHIVE" -exportPath "$W/notarized" >/dev/null 2>&1 && break
   sleep 20
 done
 NOTARIZED="$W/notarized/plugcheck.app"
-[ -d "$NOTARIZED" ] || { echo "Notarization did not finish; check Xcode Organizer." >&2; exit 1; }
+[ -d "$NOTARIZED" ] || { echo "Notarization not finished. Open Xcode → Window → Organizer to refresh, then rerun the export." >&2; exit 1; }
 
 # Fails loudly if Gatekeeper would still block it.
 spctl --assess --type execute -v "$NOTARIZED"

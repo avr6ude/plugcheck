@@ -12,6 +12,8 @@
   const { elements: { root: updRoot }, states: { checked: updChecked } } = createCheckbox({ defaultChecked: settings.update_checks, onCheckedChange: ({ next }) => { settings.update_checks = next === true; saveSettings(); return next; } });
 
   let cli = $state<"unknown" | "installed" | "missing" | "busy">("unknown");
+  let sandboxed = $state(false); // App Store build: no self-updates, no CLI symlink
+  onMount(() => { invoke<boolean>("is_sandboxed").then((s) => (sandboxed = s)).catch(() => {}); });
   let cliError = $state("");
   onMount(() => { invoke<boolean>("cli_installed").then((ok) => (cli = ok ? "installed" : "missing")).catch(() => {}); });
   async function installCli() {
@@ -31,7 +33,7 @@
     <div class="row"><span id="s-launch"><b>Open at login</b><small>Start plugcheck when you log in to your Mac.</small></span><button class="switch" aria-labelledby="s-launch" use:melt={$launchRoot}><i class:on={$launchChecked === true}></i></button></div>
     <div class="row"><span id="s-menu"><b>Menu bar only</b><small>Hide the Dock icon and open plugcheck from the menu bar.</small></span><button class="switch" aria-labelledby="s-menu" use:melt={$menuRoot}><i class:on={$menuChecked === true}></i></button></div>
     <div class="row"><span id="s-watts"><b>Charging watts in the menu bar</b><small>Show live charging power next to the menu-bar icon.</small></span><button class="switch" aria-labelledby="s-watts" use:melt={$wattsRoot}><i class:on={$wattsChecked === true}></i></button></div>
-    <div class="row"><span id="s-upd"><b>Check for updates</b><small>Look for a new release on GitHub every few hours.</small></span><button class="switch" aria-labelledby="s-upd" use:melt={$updRoot}><i class:on={$updChecked === true}></i></button></div>
+    {#if !sandboxed}<div class="row"><span id="s-upd"><b>Check for updates</b><small>Look for a new release on GitHub every few hours.</small></span><button class="switch" aria-labelledby="s-upd" use:melt={$updRoot}><i class:on={$updChecked === true}></i></button></div>{/if}
   </div>
 
   <h3 class="list-title">Scanning</h3>
@@ -55,10 +57,10 @@
   <h3 class="list-title">Advanced</h3>
   <div class="group">
     <div class="row"><span id="s-tech"><b>Show technical details</b><small>Adds a Technical tab with each port’s raw macOS data.</small></span><button class="switch" aria-labelledby="s-tech" use:melt={$techRoot}><i class:on={$techChecked === true}></i></button></div>
-    <div class="row">
+    {#if !sandboxed}<div class="row">
       <span><b>Command-line tool</b><small>{cli === "installed" ? "Installed. Run plugcheck --help in Terminal." : "Adds plugcheck to Terminal: --text, --json, --watch, --raw."}</small></span>
       {#if cli !== "installed"}<button class="push" onclick={installCli} disabled={cli === "busy"}>{cli === "busy" ? "Installing…" : "Install"}</button>{/if}
-    </div>
+    </div>{/if}
   </div>
   {#if cliError}<p class="group-note" role="alert">{cliError}</p>{/if}
 </div>
