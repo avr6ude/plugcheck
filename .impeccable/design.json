@@ -1,0 +1,831 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-06T18:17:17.970Z",
+  "title": "Design System: plugcheck",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "System Accent",
+        "canonical": "#007aff",
+        "appearance": "light",
+        "oklch": "oklch(60.3% 0.218 257.4)",
+        "tonalRamp": [
+          "oklch(15% 0.100 257.4)",
+          "oklch(26% 0.100 257.4)",
+          "oklch(38% 0.200 257.4)",
+          "oklch(50% 0.200 257.4)",
+          "oklch(62% 0.200 257.4)",
+          "oklch(74% 0.200 257.4)",
+          "oklch(85% 0.200 257.4)",
+          "oklch(95% 0.100 257.4)"
+        ],
+        "runtime": "Replaced by CSS AccentColor where supported (@supports (color: AccentColor))."
+      },
+      "accent-dark": {
+        "role": "primary",
+        "displayName": "System Accent (Dark)",
+        "canonical": "#0a84ff",
+        "appearance": "dark",
+        "oklch": "oklch(62.4% 0.206 255.5)",
+        "tonalRamp": [
+          "oklch(15% 0.100 255.5)",
+          "oklch(26% 0.100 255.5)",
+          "oklch(38% 0.200 255.5)",
+          "oklch(50% 0.200 255.5)",
+          "oklch(62% 0.200 255.5)",
+          "oklch(74% 0.200 255.5)",
+          "oklch(85% 0.200 255.5)",
+          "oklch(95% 0.100 255.5)"
+        ],
+        "runtime": "Replaced by CSS AccentColor where supported (@supports (color: AccentColor))."
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "Window Ground",
+        "canonical": "#f5f5f5",
+        "appearance": "light",
+        "oklch": "oklch(97.0% 0.000 89.9)",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(26% 0.000 89.9)",
+          "oklch(38% 0.000 89.9)",
+          "oklch(50% 0.000 89.9)",
+          "oklch(62% 0.000 89.9)",
+          "oklch(74% 0.000 89.9)",
+          "oklch(85% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "bg-dark": {
+        "role": "neutral",
+        "displayName": "Window Ground (Dark)",
+        "canonical": "#1e1e1e",
+        "appearance": "dark",
+        "oklch": "oklch(23.5% 0.000 89.9)",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(26% 0.000 89.9)",
+          "oklch(38% 0.000 89.9)",
+          "oklch(50% 0.000 89.9)",
+          "oklch(62% 0.000 89.9)",
+          "oklch(74% 0.000 89.9)",
+          "oklch(85% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "group": {
+        "role": "neutral",
+        "displayName": "Group Ground",
+        "canonical": "#ffffff",
+        "appearance": "light",
+        "oklch": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(26% 0.000 89.9)",
+          "oklch(38% 0.000 89.9)",
+          "oklch(50% 0.000 89.9)",
+          "oklch(62% 0.000 89.9)",
+          "oklch(74% 0.000 89.9)",
+          "oklch(85% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "group-dark": {
+        "role": "neutral",
+        "displayName": "Group Ground (Dark)",
+        "canonical": "#282828",
+        "appearance": "dark",
+        "oklch": "oklch(27.7% 0.000 89.9)",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(26% 0.000 89.9)",
+          "oklch(38% 0.000 89.9)",
+          "oklch(50% 0.000 89.9)",
+          "oklch(62% 0.000 89.9)",
+          "oklch(74% 0.000 89.9)",
+          "oklch(85% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "fg": {
+        "role": "neutral",
+        "displayName": "Label",
+        "canonical": "rgba(0, 0, 0, 0.85)",
+        "appearance": "light",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "fg-dark": {
+        "role": "neutral",
+        "displayName": "Label (Dark)",
+        "canonical": "rgba(255, 255, 255, 0.85)",
+        "appearance": "dark",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Secondary Label",
+        "canonical": "rgba(0, 0, 0, 0.5)",
+        "appearance": "light",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "muted-dark": {
+        "role": "neutral",
+        "displayName": "Secondary Label (Dark)",
+        "canonical": "rgba(255, 255, 255, 0.55)",
+        "appearance": "dark",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "tertiary": {
+        "role": "neutral",
+        "displayName": "Tertiary Label",
+        "canonical": "rgba(0, 0, 0, 0.26)",
+        "appearance": "light",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "tertiary-dark": {
+        "role": "neutral",
+        "displayName": "Tertiary Label (Dark)",
+        "canonical": "rgba(255, 255, 255, 0.25)",
+        "appearance": "dark",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Separator",
+        "canonical": "rgba(0, 0, 0, 0.1)",
+        "appearance": "light",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "line-dark": {
+        "role": "neutral",
+        "displayName": "Separator (Dark)",
+        "canonical": "rgba(255, 255, 255, 0.1)",
+        "appearance": "dark",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "fill": {
+        "role": "neutral",
+        "displayName": "Control Fill",
+        "canonical": "rgba(0, 0, 0, 0.05)",
+        "appearance": "light",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "fill-dark": {
+        "role": "neutral",
+        "displayName": "Control Fill (Dark)",
+        "canonical": "rgba(255, 255, 255, 0.08)",
+        "appearance": "dark",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "selected": {
+        "role": "neutral",
+        "displayName": "Selection Grey",
+        "canonical": "rgba(0, 0, 0, 0.1)",
+        "appearance": "light",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "selected-dark": {
+        "role": "neutral",
+        "displayName": "Selection Grey (Dark)",
+        "canonical": "rgba(255, 255, 255, 0.1)",
+        "appearance": "dark",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "btn": {
+        "role": "neutral",
+        "displayName": "Control Face",
+        "canonical": "#ffffff",
+        "appearance": "light",
+        "oklch": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(26% 0.000 89.9)",
+          "oklch(38% 0.000 89.9)",
+          "oklch(50% 0.000 89.9)",
+          "oklch(62% 0.000 89.9)",
+          "oklch(74% 0.000 89.9)",
+          "oklch(85% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "btn-dark": {
+        "role": "neutral",
+        "displayName": "Control Face (Dark)",
+        "canonical": "rgba(255, 255, 255, 0.17)",
+        "appearance": "dark",
+        "note": "Translucent system label/fill colour; composited over the ground beneath, so no tonal ramp."
+      },
+      "ok": {
+        "role": "tertiary",
+        "displayName": "Status Green",
+        "canonical": "#28cd41",
+        "appearance": "light",
+        "oklch": "oklch(74.1% 0.222 144.7)",
+        "tonalRamp": [
+          "oklch(15% 0.100 144.7)",
+          "oklch(26% 0.100 144.7)",
+          "oklch(38% 0.200 144.7)",
+          "oklch(50% 0.200 144.7)",
+          "oklch(62% 0.200 144.7)",
+          "oklch(74% 0.200 144.7)",
+          "oklch(85% 0.200 144.7)",
+          "oklch(95% 0.100 144.7)"
+        ]
+      },
+      "ok-dark": {
+        "role": "tertiary",
+        "displayName": "Status Green (Dark)",
+        "canonical": "#32d74b",
+        "appearance": "dark",
+        "oklch": "oklch(77.0% 0.224 145.0)",
+        "tonalRamp": [
+          "oklch(15% 0.100 145.0)",
+          "oklch(26% 0.100 145.0)",
+          "oklch(38% 0.200 145.0)",
+          "oklch(50% 0.200 145.0)",
+          "oklch(62% 0.200 145.0)",
+          "oklch(74% 0.200 145.0)",
+          "oklch(85% 0.200 145.0)",
+          "oklch(95% 0.100 145.0)"
+        ]
+      },
+      "warn": {
+        "role": "tertiary",
+        "displayName": "Status Orange",
+        "canonical": "#ff9500",
+        "appearance": "light",
+        "oklch": "oklch(76.5% 0.175 62.6)",
+        "tonalRamp": [
+          "oklch(15% 0.088 62.6)",
+          "oklch(26% 0.088 62.6)",
+          "oklch(38% 0.175 62.6)",
+          "oklch(50% 0.175 62.6)",
+          "oklch(62% 0.175 62.6)",
+          "oklch(74% 0.175 62.6)",
+          "oklch(85% 0.175 62.6)",
+          "oklch(95% 0.088 62.6)"
+        ]
+      },
+      "warn-dark": {
+        "role": "tertiary",
+        "displayName": "Status Orange (Dark)",
+        "canonical": "#ff9f0a",
+        "appearance": "dark",
+        "oklch": "oklch(78.2% 0.171 67.2)",
+        "tonalRamp": [
+          "oklch(15% 0.086 67.2)",
+          "oklch(26% 0.086 67.2)",
+          "oklch(38% 0.171 67.2)",
+          "oklch(50% 0.171 67.2)",
+          "oklch(62% 0.171 67.2)",
+          "oklch(74% 0.171 67.2)",
+          "oklch(85% 0.171 67.2)",
+          "oklch(95% 0.086 67.2)"
+        ]
+      },
+      "bad": {
+        "role": "tertiary",
+        "displayName": "Status Red",
+        "canonical": "#ff3b30",
+        "appearance": "light",
+        "oklch": "oklch(65.4% 0.232 28.7)",
+        "tonalRamp": [
+          "oklch(15% 0.100 28.7)",
+          "oklch(26% 0.100 28.7)",
+          "oklch(38% 0.200 28.7)",
+          "oklch(50% 0.200 28.7)",
+          "oklch(62% 0.200 28.7)",
+          "oklch(74% 0.200 28.7)",
+          "oklch(85% 0.200 28.7)",
+          "oklch(95% 0.100 28.7)"
+        ]
+      },
+      "bad-dark": {
+        "role": "tertiary",
+        "displayName": "Status Red (Dark)",
+        "canonical": "#ff453a",
+        "appearance": "dark",
+        "oklch": "oklch(66.3% 0.224 28.3)",
+        "tonalRamp": [
+          "oklch(15% 0.100 28.3)",
+          "oklch(26% 0.100 28.3)",
+          "oklch(38% 0.200 28.3)",
+          "oklch(50% 0.200 28.3)",
+          "oklch(62% 0.200 28.3)",
+          "oklch(74% 0.200 28.3)",
+          "oklch(85% 0.200 28.3)",
+          "oklch(95% 0.100 28.3)"
+        ]
+      },
+      "sidebar-fallback": {
+        "role": "neutral",
+        "displayName": "Sidebar Fallback",
+        "canonical": "#e9e9e9",
+        "appearance": "light",
+        "oklch": "oklch(93.4% 0.000 89.9)",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(26% 0.000 89.9)",
+          "oklch(38% 0.000 89.9)",
+          "oklch(50% 0.000 89.9)",
+          "oklch(62% 0.000 89.9)",
+          "oklch(74% 0.000 89.9)",
+          "oklch(85% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "sidebar-fallback-dark": {
+        "role": "neutral",
+        "displayName": "Sidebar Fallback (Dark)",
+        "canonical": "#2a2a2a",
+        "appearance": "dark",
+        "oklch": "oklch(28.5% 0.000 89.9)",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(26% 0.000 89.9)",
+          "oklch(38% 0.000 89.9)",
+          "oklch(50% 0.000 89.9)",
+          "oklch(62% 0.000 89.9)",
+          "oklch(74% 0.000 89.9)",
+          "oklch(85% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "shell-hi": {
+        "role": "model",
+        "displayName": "Aluminium Highlight",
+        "canonical": "#f6f7f8",
+        "appearance": "light",
+        "oklch": "oklch(97.6% 0.002 247.8)",
+        "tonalRamp": [
+          "oklch(15% 0.001 247.8)",
+          "oklch(26% 0.001 247.8)",
+          "oklch(38% 0.002 247.8)",
+          "oklch(50% 0.002 247.8)",
+          "oklch(62% 0.002 247.8)",
+          "oklch(74% 0.002 247.8)",
+          "oklch(85% 0.002 247.8)",
+          "oklch(95% 0.001 247.8)"
+        ]
+      },
+      "shell-lo": {
+        "role": "model",
+        "displayName": "Aluminium Shade",
+        "canonical": "#b4b8bd",
+        "appearance": "light",
+        "oklch": "oklch(78.1% 0.008 253.9)",
+        "tonalRamp": [
+          "oklch(15% 0.004 253.9)",
+          "oklch(26% 0.004 253.9)",
+          "oklch(38% 0.008 253.9)",
+          "oklch(50% 0.008 253.9)",
+          "oklch(62% 0.008 253.9)",
+          "oklch(74% 0.008 253.9)",
+          "oklch(85% 0.008 253.9)",
+          "oklch(95% 0.004 253.9)"
+        ]
+      },
+      "shell-hi-dark": {
+        "role": "model",
+        "displayName": "Aluminium Highlight (Dark)",
+        "canonical": "#6b6f74",
+        "appearance": "dark",
+        "oklch": "oklch(54.0% 0.009 253.9)",
+        "tonalRamp": [
+          "oklch(15% 0.005 253.9)",
+          "oklch(26% 0.005 253.9)",
+          "oklch(38% 0.009 253.9)",
+          "oklch(50% 0.009 253.9)",
+          "oklch(62% 0.009 253.9)",
+          "oklch(74% 0.009 253.9)",
+          "oklch(85% 0.009 253.9)",
+          "oklch(95% 0.005 253.9)"
+        ]
+      },
+      "shell-lo-dark": {
+        "role": "model",
+        "displayName": "Aluminium Shade (Dark)",
+        "canonical": "#2b2d30",
+        "appearance": "dark",
+        "oklch": "oklch(29.6% 0.006 258.4)",
+        "tonalRamp": [
+          "oklch(15% 0.003 258.4)",
+          "oklch(26% 0.003 258.4)",
+          "oklch(38% 0.006 258.4)",
+          "oklch(50% 0.006 258.4)",
+          "oklch(62% 0.006 258.4)",
+          "oklch(74% 0.006 258.4)",
+          "oklch(85% 0.006 258.4)",
+          "oklch(95% 0.003 258.4)"
+        ]
+      },
+      "key": {
+        "role": "model",
+        "displayName": "Keycap",
+        "canonical": "#26272a",
+        "appearance": "light",
+        "oklch": "oklch(27.3% 0.006 271.2)",
+        "tonalRamp": [
+          "oklch(15% 0.003 271.2)",
+          "oklch(26% 0.003 271.2)",
+          "oklch(38% 0.006 271.2)",
+          "oklch(50% 0.006 271.2)",
+          "oklch(62% 0.006 271.2)",
+          "oklch(74% 0.006 271.2)",
+          "oklch(85% 0.006 271.2)",
+          "oklch(95% 0.003 271.2)"
+        ]
+      },
+      "key-dark": {
+        "role": "model",
+        "displayName": "Keycap (Dark)",
+        "canonical": "#0e0f10",
+        "appearance": "dark",
+        "oklch": "oklch(16.8% 0.003 248.0)",
+        "tonalRamp": [
+          "oklch(15% 0.001 248.0)",
+          "oklch(26% 0.001 248.0)",
+          "oklch(38% 0.003 248.0)",
+          "oklch(50% 0.003 248.0)",
+          "oklch(62% 0.003 248.0)",
+          "oklch(74% 0.003 248.0)",
+          "oklch(85% 0.003 248.0)",
+          "oklch(95% 0.001 248.0)"
+        ]
+      },
+      "pad": {
+        "role": "model",
+        "displayName": "Trackpad",
+        "canonical": "#e6e8ea",
+        "appearance": "light",
+        "oklch": "oklch(93.0% 0.003 247.9)",
+        "tonalRamp": [
+          "oklch(15% 0.002 247.9)",
+          "oklch(26% 0.002 247.9)",
+          "oklch(38% 0.003 247.9)",
+          "oklch(50% 0.003 247.9)",
+          "oklch(62% 0.003 247.9)",
+          "oklch(74% 0.003 247.9)",
+          "oklch(85% 0.003 247.9)",
+          "oklch(95% 0.002 247.9)"
+        ]
+      },
+      "pad-dark": {
+        "role": "model",
+        "displayName": "Trackpad (Dark)",
+        "canonical": "#3a3c40",
+        "appearance": "dark",
+        "oklch": "oklch(35.6% 0.007 264.5)",
+        "tonalRamp": [
+          "oklch(15% 0.004 264.5)",
+          "oklch(26% 0.004 264.5)",
+          "oklch(38% 0.007 264.5)",
+          "oklch(50% 0.007 264.5)",
+          "oklch(62% 0.007 264.5)",
+          "oklch(74% 0.007 264.5)",
+          "oklch(85% 0.007 264.5)",
+          "oklch(95% 0.004 264.5)"
+        ]
+      },
+      "hole": {
+        "role": "model",
+        "displayName": "Port Opening",
+        "canonical": "#1c1d1f",
+        "appearance": "light",
+        "oklch": "oklch(23.1% 0.004 264.5)",
+        "tonalRamp": [
+          "oklch(15% 0.002 264.5)",
+          "oklch(26% 0.002 264.5)",
+          "oklch(38% 0.004 264.5)",
+          "oklch(50% 0.004 264.5)",
+          "oklch(62% 0.004 264.5)",
+          "oklch(74% 0.004 264.5)",
+          "oklch(85% 0.004 264.5)",
+          "oklch(95% 0.002 264.5)"
+        ]
+      },
+      "hole-dark": {
+        "role": "model",
+        "displayName": "Port Opening (Dark)",
+        "canonical": "#050506",
+        "appearance": "dark",
+        "oklch": "oklch(11.6% 0.003 285.9)",
+        "tonalRamp": [
+          "oklch(15% 0.002 285.9)",
+          "oklch(26% 0.002 285.9)",
+          "oklch(38% 0.003 285.9)",
+          "oklch(50% 0.003 285.9)",
+          "oklch(62% 0.003 285.9)",
+          "oklch(74% 0.003 285.9)",
+          "oklch(85% 0.003 285.9)",
+          "oklch(95% 0.002 285.9)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The one plain-sentence answer about the selected port; empty and error states."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "View name in the 52px toolbar."
+      },
+      "list-title": {
+        "displayName": "List Title",
+        "purpose": "Heading above each grouped list."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Row labels and values, controls, sidebar items."
+      },
+      "chip-label": {
+        "displayName": "Chip Label",
+        "purpose": "Port name inside a port chip."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Subtitles, group notes, setting descriptions, chip status, sidebar footer."
+      },
+      "figure": {
+        "displayName": "Figure",
+        "purpose": "Live wattage in Power Monitor."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Raw macOS data and cable signatures."
+      }
+    },
+    "shadows": [
+      {
+        "name": "hairline-ring",
+        "value": "0 0 0 .5px var(--line)",
+        "purpose": "Outline of every group and port chip; a border, not a lift."
+      },
+      {
+        "name": "btn-edge",
+        "value": "0 0 0 .5px rgba(0, 0, 0, .14), 0 1px 1.5px rgba(0, 0, 0, .1)",
+        "purpose": "Control bezel (light) on push button, pop-up button, selected segment."
+      },
+      {
+        "name": "btn-edge-dark",
+        "value": "0 0 0 .5px rgba(0, 0, 0, .3), inset 0 .5px 0 rgba(255, 255, 255, .12)",
+        "purpose": "Control bezel (dark)."
+      },
+      {
+        "name": "switch-knob",
+        "value": "0 1px 2px rgba(0, 0, 0, .3), 0 0 0 .5px rgba(0, 0, 0, .06)",
+        "purpose": "White thumb of a switch."
+      },
+      {
+        "name": "floating-menu",
+        "value": "0 0 0 .5px var(--line), 0 8px 24px rgba(0, 0, 0, .2)",
+        "purpose": "Open pop-up menu, the only floating element."
+      }
+    ],
+    "focus": [
+      {
+        "name": "focus-ring",
+        "value": "outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 0",
+        "purpose": "Global :focus-visible ring."
+      },
+      {
+        "name": "text-selection",
+        "value": "color-mix(in srgb, var(--accent) 30%, transparent)",
+        "purpose": "::selection background."
+      }
+    ],
+    "materials": [
+      {
+        "name": "sidebar-vibrancy",
+        "value": "Tauri windowEffects [\"sidebar\"], state followsWindowActiveState; transparent window, sidebar background transparent",
+        "purpose": "Native translucent sidebar material."
+      },
+      {
+        "name": "title-bar",
+        "value": "titleBarStyle Overlay, hiddenTitle, trafficLightPosition {x:20, y:28}",
+        "purpose": "Traffic lights inset into the 52px sidebar title zone."
+      },
+      {
+        "name": "screen-glass",
+        "value": "linear-gradient(135deg, #2b3036 0%, #121417 55%, #0b0c0e 100%); bezel #08090a",
+        "purpose": "Fixed Mac model screen, same in both appearances."
+      },
+      {
+        "name": "inactive-window",
+        "value": "html.inactive: selected chip uses --selected and --fg; leader/circle stroke --muted",
+        "purpose": "AppKit-style unemphasised selection when the window loses focus."
+      }
+    ],
+    "motion": [
+      {
+        "name": "model-turn",
+        "value": "650ms cubicInOut (0ms under prefers-reduced-motion)",
+        "purpose": "Mac model yaw between left and right side."
+      },
+      {
+        "name": "switch",
+        "value": "160ms ease (none under prefers-reduced-motion)",
+        "purpose": "Switch track colour and knob slide."
+      },
+      {
+        "name": "disclosure",
+        "value": "120ms ease",
+        "purpose": "Device tree caret rotation."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "ports-stack",
+        "value": "1099px",
+        "purpose": "At or below, the model stacks over the inspector (model band 260px)."
+      },
+      {
+        "name": "chip-narrow",
+        "value": "420px (scene width)",
+        "purpose": "Port chips narrow from 120px to 104px."
+      },
+      {
+        "name": "window-min",
+        "value": "760x560",
+        "purpose": "Minimum window size; opens at 1180x800."
+      }
+    ],
+    "sizes": [
+      {
+        "name": "sidebar",
+        "value": "200px"
+      },
+      {
+        "name": "toolbar",
+        "value": "52px"
+      },
+      {
+        "name": "pane-max",
+        "value": "640px"
+      },
+      {
+        "name": "inspector-min",
+        "value": "320px"
+      },
+      {
+        "name": "control",
+        "value": "22px"
+      },
+      {
+        "name": "row-min",
+        "value": "34px"
+      },
+      {
+        "name": "row-min-described",
+        "value": "44px"
+      },
+      {
+        "name": "icon",
+        "value": "16px, stroke 1.4, round caps"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Push Button",
+      "kind": "button",
+      "refersTo": "button-push",
+      "description": "AppKit push button for the few pane actions (Try Again, Forget).",
+      "html": "<button class=\"ds-push\">Try Again</button>",
+      "css": ".ds-push{font:13px/1.4 -apple-system,BlinkMacSystemFont,\"Helvetica Neue\",sans-serif;height:22px;padding:0 12px;border:0;border-radius:5px;background:var(--btn,#fff);color:var(--fg,rgba(0,0,0,.85));box-shadow:var(--btn-edge,0 0 0 .5px rgba(0,0,0,.14),0 1px 1.5px rgba(0,0,0,.1))}.ds-push:active{filter:brightness(.94)}.ds-push:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#007aff) 55%,transparent)}"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "nav",
+      "refersTo": "segmented",
+      "description": "NSSegmentedControl imitation for inspector tabs and the Left/Right side toggle.",
+      "html": "<div class=\"ds-seg\" role=\"tablist\"><button class=\"on\" role=\"tab\" aria-selected=\"true\">Overview</button><button role=\"tab\">Devices (1)</button><button role=\"tab\">Power</button></div>",
+      "css": ".ds-seg{display:flex;gap:2px;padding:2px;border-radius:7px;background:var(--fill,rgba(0,0,0,.05));max-width:360px}.ds-seg button{font:13px/1.4 -apple-system,BlinkMacSystemFont,\"Helvetica Neue\",sans-serif;flex:1;height:22px;border:0;border-radius:5px;background:none;color:var(--fg,rgba(0,0,0,.85))}.ds-seg button.on{background:var(--btn,#fff);box-shadow:var(--btn-edge,0 0 0 .5px rgba(0,0,0,.14),0 1px 1.5px rgba(0,0,0,.1))}.ds-seg button:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#007aff) 55%,transparent)}"
+    },
+    {
+      "name": "Switch",
+      "kind": "input",
+      "refersTo": "switch",
+      "description": "NSSwitch imitation for boolean settings.",
+      "html": "<button class=\"ds-switch\" role=\"switch\" aria-checked=\"true\" aria-label=\"Notifications\"><i></i></button> <button class=\"ds-switch\" role=\"switch\" aria-checked=\"false\" aria-label=\"Open at login\"><i></i></button>",
+      "css": ".ds-switch{width:38px;height:22px;padding:0;border:0;border-radius:11px;background:none}.ds-switch i{position:relative;display:block;width:100%;height:100%;border-radius:inherit;background:rgba(0,0,0,.1);box-shadow:inset 0 0 0 .5px var(--line,rgba(0,0,0,.1));transition:background 160ms ease}.ds-switch i::after{content:\"\";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3),0 0 0 .5px rgba(0,0,0,.06);transition:transform 160ms ease}.ds-switch[aria-checked=true] i{background:var(--accent,#007aff)}.ds-switch[aria-checked=true] i::after{transform:translateX(16px)}.ds-switch:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#007aff) 55%,transparent)}"
+    },
+    {
+      "name": "Pop-up Button",
+      "kind": "input",
+      "refersTo": "popup-button",
+      "description": "NSPopUpButton imitation for a choice among a few values.",
+      "html": "<button class=\"ds-popup\">Every 3 seconds<svg viewBox=\"0 0 8 12\" width=\"7\" height=\"11\" aria-hidden=\"true\"><path d=\"M1 4.3 4 1.3l3 3M1 7.7l3 3 3-3\"/></svg></button>",
+      "css": ".ds-popup{font:13px/1.4 -apple-system,BlinkMacSystemFont,\"Helvetica Neue\",sans-serif;display:inline-flex;align-items:center;gap:8px;height:22px;padding:0 6px 0 10px;border:0;border-radius:5px;background:var(--btn,#fff);color:var(--fg,rgba(0,0,0,.85));box-shadow:var(--btn-edge,0 0 0 .5px rgba(0,0,0,.14),0 1px 1.5px rgba(0,0,0,.1))}.ds-popup svg{fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;opacity:.7}.ds-popup:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#007aff) 55%,transparent)}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Borderless inline field inside a list row, e.g. naming a cable.",
+      "html": "<input class=\"ds-field\" placeholder=\"Unnamed\">",
+      "css": ".ds-field{font:13px/1.4 -apple-system,BlinkMacSystemFont,\"Helvetica Neue\",sans-serif;width:12rem;height:22px;padding:0 6px;border:0;border-radius:5px;background:var(--fill,rgba(0,0,0,.05));color:var(--fg,rgba(0,0,0,.85));text-align:right}.ds-field:focus{text-align:left}.ds-field:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#007aff) 55%,transparent)}"
+    },
+    {
+      "name": "Grouped List",
+      "kind": "card",
+      "refersTo": "group",
+      "description": "The one container every view uses: list title, inset group, label left and value right.",
+      "html": "<h3 class=\"ds-list-title\">Connection</h3><dl class=\"ds-group\"><div class=\"ds-row\"><dt>Link</dt><dd>USB 2.0 · 480 Mb/s</dd></div><div class=\"ds-row\"><dt>Port supports</dt><dd>Thunderbolt / USB4</dd></div><div class=\"ds-row\"><dt>Cable</dt><dd>Passive</dd></div></dl><p class=\"ds-note\">The cable is the slowest part of this chain.</p>",
+      "css": ".ds-list-title{font:13px/1.4 -apple-system,BlinkMacSystemFont,\"Helvetica Neue\",sans-serif;margin:0 0 6px 12px;font-weight:600;color:var(--fg,rgba(0,0,0,.85))}.ds-group{font:13px/1.4 -apple-system,BlinkMacSystemFont,\"Helvetica Neue\",sans-serif;margin:0;padding:0 0 0 12px;border-radius:10px;background:var(--group,#fff);box-shadow:0 0 0 .5px var(--line,rgba(0,0,0,.1));max-width:420px}.ds-row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:34px;padding:7px 12px 7px 0;color:var(--fg,rgba(0,0,0,.85))}.ds-row+.ds-row{border-top:1px solid var(--line,rgba(0,0,0,.1))}.ds-row dd{margin:0;color:var(--muted,rgba(0,0,0,.5));text-align:right;font-variant-numeric:tabular-nums}.ds-note{margin:6px 12px 0;color:var(--muted,rgba(0,0,0,.5));font:11px/1.35 -apple-system,BlinkMacSystemFont,sans-serif}"
+    },
+    {
+      "name": "Sidebar Source List",
+      "kind": "nav",
+      "refersTo": "sidebar-item",
+      "description": "Transparent source list over the window sidebar material; active row in selection grey.",
+      "html": "<nav class=\"ds-side\"><button class=\"ds-item on\"><svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" aria-hidden=\"true\"><rect x=\"2\" y=\"3.5\" width=\"12\" height=\"3.5\" rx=\"1.75\"/><rect x=\"2\" y=\"9\" width=\"12\" height=\"3.5\" rx=\"1.75\"/></svg><span>Ports</span></button><button class=\"ds-item\"><svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" aria-hidden=\"true\"><path d=\"M9.2 1.8 4.3 8.6h3.4l-.9 5.6 4.9-7H8.3z\"/></svg><span>Power Monitor</span></button><button class=\"ds-item\"><svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" aria-hidden=\"true\"><rect x=\"1.8\" y=\"2.5\" width=\"12.4\" height=\"8.6\" rx=\"1.4\"/><path d=\"M5.8 13.8h4.4M8 11.1v2.7\"/></svg><span>Displays</span></button></nav>",
+      "css": ".ds-side{display:grid;gap:1px;width:180px;padding:10px;background:var(--sidebar-fallback,#e9e9e9)}.ds-item{font:13px/1.4 -apple-system,BlinkMacSystemFont,\"Helvetica Neue\",sans-serif;display:flex;align-items:center;gap:7px;height:28px;width:100%;padding:0 8px;border:0;border-radius:6px;background:none;color:var(--fg,rgba(0,0,0,.85));text-align:left}.ds-item.on{background:var(--selected,rgba(0,0,0,.1))}.ds-item svg{flex:none;fill:none;stroke:var(--accent,#007aff);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}.ds-item:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#007aff) 55%,transparent)}"
+    },
+    {
+      "name": "Verdict Header",
+      "kind": "custom",
+      "refersTo": "status-glyph",
+      "description": "Status glyph plus the one plain-sentence headline and its secondary explanation.",
+      "html": "<header class=\"ds-head\"><svg class=\"ds-glyph\" viewBox=\"0 0 20 20\" width=\"24\" height=\"24\" aria-hidden=\"true\"><circle cx=\"10\" cy=\"10\" r=\"10\"/><path d=\"M6 10.4l2.7 2.7L14 7.3\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><div><h2>iPhone is connected at USB 2.0.</h2><p>USB 2.0 — device maximum. Not cable- or port-limited.</p></div></header>",
+      "css": ".ds-head{font:13px/1.4 -apple-system,BlinkMacSystemFont,\"Helvetica Neue\",sans-serif;display:flex;align-items:flex-start;gap:10px;color:var(--fg,rgba(0,0,0,.85))}.ds-glyph{flex:none;margin-top:1px}.ds-glyph circle{fill:var(--ok,#28cd41)}.ds-head h2{margin:0;font-size:17px;font-weight:600;line-height:1.25}.ds-head p{margin:2px 0 0;color:var(--muted,rgba(0,0,0,.5))}"
+    },
+    {
+      "name": "Port Chip",
+      "kind": "chip",
+      "refersTo": "port-chip",
+      "description": "Popover-like label beside the Mac model; accent-filled when selected.",
+      "html": "<div style=\"display:flex;gap:8px\"><button class=\"ds-chip on\" aria-pressed=\"true\"><b>USB-C 1</b><small><i class=\"live\"></i>In use</small></button><button class=\"ds-chip\"><b>USB-C 2</b><small><i></i>Not connected</small></button></div>",
+      "css": ".ds-chip{font:13px/1.4 -apple-system,BlinkMacSystemFont,\"Helvetica Neue\",sans-serif;display:grid;gap:1px;align-content:center;width:120px;height:40px;padding:0 10px;border:0;border-radius:8px;background:var(--group,#fff);color:var(--fg,rgba(0,0,0,.85));box-shadow:0 0 0 .5px var(--line,rgba(0,0,0,.1));text-align:left}.ds-chip b{font-size:12px;font-weight:600}.ds-chip small{display:flex;align-items:center;gap:4px;color:var(--muted,rgba(0,0,0,.5));font-size:11px}.ds-chip small i{width:6px;height:6px;border-radius:50%;background:var(--tertiary,rgba(0,0,0,.26))}.ds-chip small i.live{background:var(--ok,#28cd41)}.ds-chip.on{background:var(--accent,#007aff);color:#fff}.ds-chip.on small{color:rgba(255,255,255,.8)}.ds-chip.on small i{box-shadow:0 0 0 1px #fff}.ds-chip:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#007aff) 55%,transparent)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Fourth System Utility",
+    "overview": "plugcheck is built to sit in the Utilities folder next to System Information and About This Mac and not look like a guest. It is an Apple utility, not a web dashboard: the window borrows the system's materials, type, colours and controls, and then gets out of the way so one plain sentence about a port can do the talking. Nothing in it is branded. The accent is whatever the user picked in System Settings, the sidebar is the window's own vibrancy, and both appearances are first-class.\n\nThe density is macOS density: 13 px text, 22 px controls, 34 px list rows, hairline separators. Every view is a source list on the left and a content pane on the right whose data lives in grouped inset lists, the System Settings pattern. The one illustrative object is a 3D wireframe MacBook drawn in silver aluminium (space grey in dark appearance) that turns to show the side you care about; ports are picked from popover-like chips beside it.\n\nThe world was chosen against a rejected predecessor, a dark charcoal theme with a salmon brand accent, metric tiles, tinted alert cards and bordered pills. None of those devices come back.",
+    "keyCharacteristics": [
+      "System appearance, light and dark, every token defined for both.",
+      "Translucent sidebar material from the window itself, not painted.",
+      "SF at macOS sizes: 13 body, 11 secondary, 17 for the one headline sentence.",
+      "System accent for selection and focus; green, orange and red appear only as status glyphs.",
+      "Grouped inset lists with hairline separators; flat surfaces, no drop shadows on containers.",
+      "Native control imitations: push button, segmented control, switch, pop-up button.",
+      "Selection goes grey when the window is inactive, as in AppKit."
+    ],
+    "rules": [
+      {
+        "name": "The Borrowed Accent Rule",
+        "body": "There is no brand colour. The only chromatic colour that is not a status is the system accent, and it means selection or focus, nothing else.",
+        "section": "colors"
+      },
+      {
+        "name": "The Glyph-Sized Status Rule",
+        "body": "Green, orange and red appear only as the fill of a round status glyph or a 6 px dot. They never tint a card, a row, a background or a run of text.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Appearances Rule",
+        "body": "Every colour has a light and a dark value and the app follows `prefers-color-scheme`; nothing is designed for one appearance and inverted for the other.",
+        "section": "colors"
+      },
+      {
+        "name": "The Thirteen and Eleven Rule",
+        "body": "Running text is 13 px or 11 px. The only larger sizes are the headline sentence, the toolbar title and the live power figure.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Shouting Rule",
+        "body": "No uppercase labels, no tracking, no small caps. Headings are sentence case and bolded, as in System Settings.",
+        "section": "typography"
+      },
+      {
+        "name": "The Title Bar Is Not a Toolbar Rule",
+        "body": "The 52 px band holds the view title and subtitle only. Controls belong in the pane, because macOS keeps the clicks in that zone for dragging.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Container Rule",
+        "body": "Groups, chips and panes never cast a shadow. A drop shadow is reserved for things that physically sit above the window: an open menu and a switch knob.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do take colour from the system: the AccentColor accent, the label alpha ramp, the separator, for both appearances.",
+      "Do put every set of facts in a grouped list: list title, 10px group, label left, secondary value right.",
+      "Do lead a view with one plain-sentence headline (17px semibold) and its status glyph, then the facts.",
+      "Do keep text at 13 px and 11 px and build hierarchy with weight and label colour.",
+      "Do imitate native controls at native size (22 px tall, 5px corners) and keep their native states, including the grey inactive-window selection.",
+      "Do let values be selectable and use tabular figures for numbers.",
+      "Do honour reduced motion: the model turn and switch transitions drop to instant."
+    ],
+    "donts": [
+      "Don't bring back the card dashboard: no metric tiles, no tinted alert cards, no bordered pills, no brand accent.",
+      "Don't return to the charcoal and salmon theme or paint a custom background behind the sidebar inside the app.",
+      "Don't use green, orange or red as a background, border or text colour; status is a glyph.",
+      "Don't cast a shadow from a group, chip or pane.",
+      "Don't put controls in the 52 px title band.",
+      "Don't use uppercase eyebrows, tracked labels or a custom display face."
+    ]
+  }
+}

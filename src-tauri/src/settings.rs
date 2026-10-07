@@ -13,7 +13,8 @@ pub struct Settings {
     pub launch_at_login: bool,
     /// Hide the Dock icon and run as a pure menu-bar app.
     pub menu_bar_only: bool,
-    pub hide_empty: bool,
+    /// Show the raw-data "Technical" tab on ports.
+    pub show_technical: bool,
 }
 
 impl Default for Settings {
@@ -23,7 +24,7 @@ impl Default for Settings {
             poll_secs: 3,
             launch_at_login: false,
             menu_bar_only: false,
-            hide_empty: false,
+            show_technical: false,
         }
     }
 }

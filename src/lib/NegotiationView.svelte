@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Port } from "./snapshot.svelte";
+  import { portLabel } from "./MacScene.svelte";
   import { store } from "./snapshot.svelte";
 
   const occ = $derived((store.snapshot?.ports ?? []).filter((p) => p.occupied));
@@ -43,91 +44,27 @@
   }
 </script>
 
-<div class="neg">
-  {#if occ.length === 0}
-    <p class="empty">No cables connected.</p>
-  {/if}
-  {#each occ as p}
-    {@const dev = fastestDevice(p)}
-    {@const weak = weakLink(p)}
-    <div class="grp">
-      <div class="gh">{p.id}</div>
-      <table>
-        <tbody>
-          <tr class:weak={weak === "port"}>
-            <td class="k">Mac port</td>
-            <td>{p.supported.join(", ") || "—"}</td>
-          </tr>
-          <tr class:weak={weak === "cable"}>
-            <td class="k">Cable</td>
-            <td>{p.emarker.present ? name(p.emarker.max_speed) : "Unknown — no e-marker"}</td>
-          </tr>
-          <tr class:weak={weak === "device"}>
-            <td class="k">Device</td>
-            <td>{dev !== "none" ? name(dev) : "—"}</td>
-          </tr>
-          <tr class="row-neg">
-            <td class="k">Negotiated</td>
-            <td>{p.provisioned.join(", ") || "—"}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p class="verdict">
-        {#if weak === "cable"}Cable is the weak link.
-        {:else if weak === "port"}Mac port is negotiating low.
-        {:else}Device maximum — cable and port aren't limiting.{/if}
-      </p>
-    </div>
-  {/each}
-</div>
+{#if occ.length === 0}
+  <p class="empty-note">Nothing is connected. Plug in a cable to see what each part of the chain negotiated.</p>
+{/if}
+{#each occ as p}
+  {@const dev = fastestDevice(p)}
+  {@const weak = weakLink(p)}
+  <h3 class="list-title">{portLabel(p)}</h3>
+  <dl class="group">
+    <div class="row"><dt>Mac port</dt><dd>{#if weak === "port"}<svg class="warn-mark" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><circle cx="10" cy="10" r="10" /><path d="M10 5.6v5.3M10 14.3v.1" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" /></svg>{/if}{p.supported.join(", ") || "Unknown"}</dd></div>
+    <div class="row"><dt>Cable</dt><dd>{#if weak === "cable"}<svg class="warn-mark" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><circle cx="10" cy="10" r="10" /><path d="M10 5.6v5.3M10 14.3v.1" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" /></svg>{/if}{p.emarker.present ? name(p.emarker.max_speed) : "Unknown (no e-marker)"}</dd></div>
+    <div class="row"><dt>Device</dt><dd>{#if weak === "device"}<svg class="warn-mark" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><circle cx="10" cy="10" r="10" /><path d="M10 5.6v5.3M10 14.3v.1" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" /></svg>{/if}{dev !== "none" ? name(dev) : "Unknown"}</dd></div>
+    <div class="row"><dt><b>Negotiated</b></dt><dd><b>{p.provisioned.join(", ") || "Nothing yet"}</b></dd></div>
+  </dl>
+  <p class="group-note">
+    {#if weak === "cable"}The cable is the slowest part of this chain.
+    {:else if weak === "port"}The Mac port is negotiating below what it can do.
+    {:else}Running at the device’s maximum; the cable and port aren’t limiting it.{/if}
+  </p>
+{/each}
 
 <style>
-  .neg {
-    display: grid;
-    gap: 1rem;
-  }
-  .empty {
-    color: var(--muted);
-  }
-  .grp {
-    border: 0.5px solid var(--line);
-    border-radius: 10px;
-    background: var(--card);
-    padding: 0.7rem 0.85rem;
-  }
-  .gh {
-    font: 0.7rem/1.2 var(--mono);
-    color: var(--muted);
-    margin-bottom: 0.4rem;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.85rem;
-  }
-  td {
-    padding: 0.3rem 0.4rem;
-    border-top: 0.5px solid var(--line);
-  }
-  tr:first-child td {
-    border-top: 0;
-  }
-  .k {
-    width: 6.5rem;
-    color: var(--muted);
-  }
-  .row-neg td {
-    font-weight: 600;
-  }
-  tr.weak td {
-    background: color-mix(in srgb, var(--warn) 14%, transparent);
-  }
-  tr.weak .k {
-    color: var(--warn-fg);
-  }
-  .verdict {
-    margin: 0.5rem 0 0;
-    font-size: 0.82rem;
-    color: var(--muted);
-  }
+  b { color: var(--fg); font-weight: 600; }
+  .warn-mark { flex: none; vertical-align: -2px; margin-right: 5px; } .warn-mark circle { fill: var(--warn); }
 </style>

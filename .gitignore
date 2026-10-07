@@ -12,3 +12,5 @@ vite.config.ts.timestamp-*
 # rust / tauri
 src-tauri/target
 src-tauri/gen/schemas
+.DS_Store
+.impeccable/review/

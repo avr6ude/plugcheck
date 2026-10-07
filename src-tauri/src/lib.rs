@@ -5,7 +5,6 @@ pub mod probe;
 pub mod settings;
 pub mod verdict;
 
-use std::collections::BTreeMap;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -272,19 +271,6 @@ fn forget_cable(app: tauri::AppHandle, sig: String) {
 }
 
 #[tauri::command]
-fn engineer_dump(
-    port_id: String,
-    state: State<AppState>,
-) -> Result<BTreeMap<String, String>, String> {
-    let snap = state.probe.snapshot().map_err(|e| e.to_string())?;
-    snap.ports
-        .into_iter()
-        .find(|p| p.id == port_id)
-        .map(|p| p.raw)
-        .ok_or_else(|| format!("no port {port_id}"))
-}
-
-#[tauri::command]
 fn app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
@@ -389,7 +375,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_verdicts,
-            engineer_dump,
             get_settings,
             set_settings,
             rename_cable,

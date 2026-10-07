@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { createAccordion, melt } from "@melt-ui/svelte";
   import type { DeviceNode } from "./snapshot.svelte";
   import Self from "./DeviceTree.svelte";
 
@@ -8,9 +9,10 @@
     forceOpen = false,
   }: { nodes: DeviceNode[]; depth?: number; forceOpen?: boolean } = $props();
 
-  // Hubs start collapsed (WhatCable does the same); `forceOpen` expands the lot.
-  let open = $state<Record<string, boolean>>({});
-  const isOpen = (key: string) => forceOpen || open[key] === true;
+  // Hubs start collapsed; `forceOpen` expands the lot.
+  const accordion = createAccordion({ multiple: true });
+  const { elements: { root, item, trigger, content }, helpers: { isSelected } } = accordion;
+  $effect(() => accordion.options.forceVisible.set(forceOpen));
 
   function speedLabel(s: string): string {
     const map: Record<string, string> = {
@@ -32,19 +34,20 @@
   }
 </script>
 
-<ul class="tree" class:root={depth === 0}>
+<ul class="tree" class:root={depth === 0} use:melt={$root}>
   {#each nodes as n, i}
     {@const key = `${depth}:${i}:${n.name}`}
     {@const hasKids = n.children.length > 0}
     {@const collapsible = n.is_hub && hasKids}
-    <li>
+    {@const expanded = forceOpen || $isSelected(key)}
+    <li use:melt={$item({ value: key })}>
       <div class="row">
         <button
           class="caret"
-          class:open={isOpen(key)}
+          class:open={expanded}
           class:hidden={!collapsible}
-          onclick={() => (open[key] = !isOpen(key))}
-          aria-label={isOpen(key) ? "collapse" : "expand"}
+          use:melt={$trigger({ value: key })}
+          aria-label={expanded ? "collapse" : "expand"}
         >
           <svg viewBox="0 0 12 12" width="9" height="9" aria-hidden="true">
             <path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
@@ -53,7 +56,7 @@
         <div class="info">
           <div class="line1">
             <span class="name">{n.name}</span>
-            {#if collapsible && !isOpen(key)}
+            {#if collapsible && !expanded}
               <span class="count">· {subtreeCount(n)} device{subtreeCount(n) === 1 ? "" : "s"}</span>
             {/if}
             {#if speedLabel(n.speed)}<span class="speed">{speedLabel(n.speed)}</span>{/if}
@@ -67,7 +70,11 @@
           </div>
         </div>
       </div>
-      {#if hasKids && (isOpen(key) || !n.is_hub)}
+      {#if hasKids && n.is_hub}
+        <div class="children" use:melt={$content({ value: key })}>
+          <Self nodes={n.children} depth={depth + 1} {forceOpen} />
+        </div>
+      {:else if hasKids}
         <Self nodes={n.children} depth={depth + 1} {forceOpen} />
       {/if}
     </li>

@@ -196,7 +196,7 @@ export interface Settings {
   poll_secs: number;
   launch_at_login: boolean;
   menu_bar_only: boolean;
-  hide_empty: boolean;
+  show_technical: boolean;
 }
 
 export const settings = $state<Settings>({
@@ -204,7 +204,7 @@ export const settings = $state<Settings>({
   poll_secs: 3,
   launch_at_login: false,
   menu_bar_only: false,
-  hide_empty: false,
+  show_technical: false,
 });
 
 export async function loadSettings(): Promise<void> {

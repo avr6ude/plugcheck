@@ -1,108 +1,67 @@
 <script lang="ts">
+  import { createCheckbox, createSelect, melt } from "@melt-ui/svelte";
   import { settings, saveSettings } from "./snapshot.svelte";
-  let { onClose }: { onClose: () => void } = $props();
 
-  async function commit() {
-    await saveSettings();
-  }
+  const { elements: { root: launchRoot }, states: { checked: launchChecked } } = createCheckbox({ defaultChecked: settings.launch_at_login, onCheckedChange: ({ next }) => { settings.launch_at_login = next === true; saveSettings(); return next; } });
+  const { elements: { root: menuRoot }, states: { checked: menuChecked } } = createCheckbox({ defaultChecked: settings.menu_bar_only, onCheckedChange: ({ next }) => { settings.menu_bar_only = next === true; saveSettings(); return next; } });
+  const { elements: { root: notifyRoot }, states: { checked: notifyChecked } } = createCheckbox({ defaultChecked: settings.notifications, onCheckedChange: ({ next }) => { settings.notifications = next === true; saveSettings(); return next; } });
+  const { elements: { root: techRoot }, states: { checked: techChecked } } = createCheckbox({ defaultChecked: settings.show_technical, onCheckedChange: ({ next }) => { settings.show_technical = next === true; saveSettings(); return next; } });
+  const intervals = [1, 2, 3, 5, 10];
+  const label = (s: number) => `Every ${s} second${s === 1 ? "" : "s"}`;
+  const { elements: { trigger, menu, option }, states: { selectedLabel, open } } = createSelect<number>({ defaultSelected: { value: settings.poll_secs, label: label(settings.poll_secs) }, onSelectedChange: ({ next }) => { if (next) { settings.poll_secs = next.value; saveSettings(); } return next; } });
 </script>
 
-<svelte:window onkeydown={(e) => e.key === "Escape" && onClose()} />
-<!-- svelte-ignore a11y_click_events_have_key_events -- Escape + Done button are the keyboard paths -->
-<div class="backdrop" onclick={onClose} role="presentation">
-  <div class="panel" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Settings" tabindex="-1">
-    <header>
-      <strong>Settings</strong>
-      <button onclick={onClose}>Done</button>
-    </header>
+<div>
+  <h3 class="list-title">General</h3>
+  <div class="group">
+    <div class="row"><span id="s-launch"><b>Open at login</b><small>Start plugcheck when you log in to your Mac.</small></span><button class="switch" aria-labelledby="s-launch" use:melt={$launchRoot}><i class:on={$launchChecked === true}></i></button></div>
+    <div class="row"><span id="s-menu"><b>Menu bar only</b><small>Hide the Dock icon and open plugcheck from the menu bar.</small></span><button class="switch" aria-labelledby="s-menu" use:melt={$menuRoot}><i class:on={$menuChecked === true}></i></button></div>
+  </div>
 
-    <label class="row">
-      <input type="checkbox" bind:checked={settings.notifications} onchange={commit} />
-      <span>
-        <b>Notifications</b>
-        <small>Alert when a device connects, disconnects, or a link is limited.</small>
-      </span>
-    </label>
+  <h3 class="list-title">Scanning</h3>
+  <div class="group">
+    <div class="row">
+      <span><b>Refresh</b><small>How often plugcheck rescans your ports.</small></span>
+      <div class="popup">
+        <button class="popup-button" use:melt={$trigger}>{$selectedLabel}<svg viewBox="0 0 8 12" width="7" height="11" aria-hidden="true"><path d="M1 4.3 4 1.3l3 3M1 7.7l3 3 3-3" /></svg></button>
+        {#if $open}
+          <div class="menu" use:melt={$menu}>
+            {#each intervals as seconds}
+              <button class="item" use:melt={$option({ value: seconds, label: label(seconds) })}>{label(seconds)}</button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
+    <div class="row"><span id="s-notify"><b>Plug and unplug notifications</b><small>Tell me when something is connected or removed.</small></span><button class="switch" aria-labelledby="s-notify" use:melt={$notifyRoot}><i class:on={$notifyChecked === true}></i></button></div>
+  </div>
 
-    <label class="row">
-      <input type="checkbox" bind:checked={settings.launch_at_login} onchange={commit} />
-      <span><b>Launch at login</b></span>
-    </label>
-
-    <label class="row">
-      <input type="checkbox" bind:checked={settings.menu_bar_only} onchange={commit} />
-      <span>
-        <b>Menu-bar only</b>
-        <small>Hide the Dock icon; reach the app from the menu-bar tray.</small>
-      </span>
-    </label>
-
-    <label class="row">
-      <span><b>Refresh interval</b></span>
-      <select bind:value={settings.poll_secs} onchange={commit}>
-        <option value={1}>1 second</option>
-        <option value={2}>2 seconds</option>
-        <option value={3}>3 seconds</option>
-        <option value={5}>5 seconds</option>
-        <option value={10}>10 seconds</option>
-      </select>
-    </label>
+  <h3 class="list-title">Advanced</h3>
+  <div class="group">
+    <div class="row"><span id="s-tech"><b>Show technical details</b><small>Adds a Technical tab with each port’s raw macOS data.</small></span><button class="switch" aria-labelledby="s-tech" use:melt={$techRoot}><i class:on={$techChecked === true}></i></button></div>
   </div>
 </div>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1.5rem;
-  }
-  .panel {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    width: 100%;
-    max-width: 420px;
-    padding: 1rem 1.1rem 1.2rem;
-  }
-  header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.9rem;
-  }
-  header button {
-    font-size: 0.78rem;
-    background: transparent;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    padding: 0.25rem 0.7rem;
-    color: var(--fg);
-    cursor: pointer;
-  }
-  .row {
-    display: flex;
-    gap: 0.6rem;
-    align-items: flex-start;
-    padding: 0.5rem 0;
-    border-top: 1px solid var(--line);
-  }
-  .row span {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-  }
-  .row small {
-    color: var(--muted);
-    font-size: 0.75rem;
-  }
-  .row select {
-    margin-left: auto;
-  }
-  input[type="checkbox"] {
-    margin-top: 0.15rem;
-  }
+  .group > .row { min-height: 44px; padding-block: 8px; }
+  .row > span { display: grid; gap: 2px; }
+  b { font-weight: 400; }
+  small { color: var(--muted); font-size: 11px; }
+
+  /* NSSwitch */
+  .switch { flex: none; width: 38px; height: 22px; padding: 0; border: 0; border-radius: 11px; background: none; }
+  .switch i { position: relative; display: block; width: 100%; height: 100%; border-radius: inherit; background: rgba(0, 0, 0, .1); box-shadow: inset 0 0 0 .5px var(--line); transition: background 160ms ease; }
+  @media (prefers-color-scheme: dark) { .switch i { background: rgba(255, 255, 255, .18); } }
+  .switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 0 0 .5px rgba(0, 0, 0, .06); transition: transform 160ms ease; }
+  .switch i.on { background: var(--accent); }
+  .switch i.on::after { transform: translateX(16px); }
+
+  /* NSPopUpButton */
+  .popup { position: relative; flex: none; }
+  .popup-button { display: flex; align-items: center; gap: 8px; height: 22px; padding: 0 6px 0 10px; border: 0; border-radius: 5px; background: var(--btn); box-shadow: var(--btn-edge); }
+  .popup-button svg { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; opacity: .7; }
+  .menu { position: absolute; z-index: 10; right: 0; top: 26px; min-width: 100%; padding: 5px; border-radius: 7px; background: var(--group); box-shadow: 0 0 0 .5px var(--line), 0 8px 24px rgba(0, 0, 0, .2); }
+  .item { display: block; width: 100%; height: 22px; padding: 0 10px; border: 0; border-radius: 4px; background: none; text-align: left; white-space: nowrap; }
+  .item:hover, .item[data-highlighted] { background: var(--accent); color: #fff; }
+  @media (prefers-reduced-motion: reduce) { .switch i, .switch i::after { transition: none; } }
 </style>

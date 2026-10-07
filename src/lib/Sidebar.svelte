@@ -1,210 +1,57 @@
 <script lang="ts">
-  import { settings, saveSettings, refresh, store } from "./snapshot.svelte";
+  import { createTabs, melt } from "@melt-ui/svelte";
+  import { refresh, store } from "./snapshot.svelte";
 
-  type View = "ports" | "power" | "negotiation" | "displays" | "cables";
-
-  let {
-    open,
-    view,
-    technical,
-    deviceCount,
-    onClose,
-    onView,
-    onSettings,
-    onToggleTechnical,
-  }: {
-    open: boolean;
-    view: View;
-    technical: boolean;
-    deviceCount: number;
-    onClose: () => void;
-    onView: (v: View) => void;
-    onSettings: () => void;
-    onToggleTechnical: () => void;
-  } = $props();
-
+  type View = "ports" | "power" | "negotiation" | "displays" | "cables" | "settings";
+  let { view, deviceCount, onView }: { view: View; deviceCount: number; onView: (v: View) => void } = $props();
   const NAV: { id: View; label: string }[] = [
-    { id: "ports", label: "Ports" },
-    { id: "power", label: "Power monitor" },
-    { id: "negotiation", label: "Negotiation" },
-    { id: "displays", label: "Displays" },
-    { id: "cables", label: "Saved cables" },
+    { id: "ports", label: "Ports" }, { id: "power", label: "Power Monitor" }, { id: "negotiation", label: "Negotiation" }, { id: "displays", label: "Displays" }, { id: "cables", label: "Saved Cables" },
   ];
-
-  function toggleEmpty() {
-    settings.hide_empty = !settings.hide_empty;
-    saveSettings();
-  }
+  const { elements: { root, list, trigger } } = createTabs({ defaultValue: "ports", orientation: "vertical", activateOnFocus: true, onValueChange: ({ next }) => { onView(next as View); return next; } });
+  // In the app the window paints the sidebar material; in a plain browser there is nothing behind it.
+  const native = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 </script>
 
-{#if open}
-  <div class="scrim" onclick={onClose} role="presentation"></div>
-{/if}
+{#snippet icon(id: string)}
+  <svg class="i" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+    {#if id === "ports"}<rect x="2" y="3.5" width="12" height="3.5" rx="1.75" /><rect x="2" y="9" width="12" height="3.5" rx="1.75" />
+    {:else if id === "power"}<path d="M9.2 1.8 4.3 8.6h3.4l-.9 5.6 4.9-7H8.3z" />
+    {:else if id === "negotiation"}<path d="M2.5 5.5h10M10 3l2.5 2.5L10 8M13.5 10.5h-10M6 8l-2.5 2.5L6 13" />
+    {:else if id === "displays"}<rect x="1.8" y="2.5" width="12.4" height="8.6" rx="1.4" /><path d="M5.8 13.8h4.4M8 11.1v2.7" />
+    {:else if id === "cables"}<path d="M4.3 2h7.4v12l-3.7-2.8L4.3 14z" />
+    {:else if id === "refresh"}<path d="M13 8a5 5 0 1 1-1.47-3.54M13 2.3v3h-3" />
+    {:else}<circle cx="8" cy="8" r="2.2" /><path d="M8 1.8v1.9M8 12.3v1.9M1.8 8h1.9M12.3 8h1.9M3.6 3.6 5 5M11 11l1.4 1.4M12.4 3.6 11 5M5 11l-1.4 1.4" />{/if}
+  </svg>
+{/snippet}
 
-<aside class="bar" class:open>
-  <div class="brand">
-    <span class="plug" aria-hidden="true">
-      <svg viewBox="0 0 20 20" width="18" height="18">
-        <rect x="3.5" y="6" width="10" height="8" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/>
-        <path d="M13.5 8.5 h3 M13.5 11.5 h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-      </svg>
-    </span>
-    <b>plugcheck</b>
-  </div>
-
-  {#snippet icon(id: string)}
-    <svg class="i" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-      {#if id === "ports"}
-        <rect x="2" y="3" width="12" height="3" rx="1" /><rect x="2" y="8.5" width="12" height="3" rx="1" />
-      {:else if id === "power"}
-        <path d="M9 1.5 L4 8.5 H7.5 L7 14.5 L12 7 H8.5 Z" fill="currentColor" stroke="none" />
-      {:else if id === "negotiation"}
-        <path d="M3 5 h9 M9.5 2.5 L12.5 5 L9.5 7.5 M13 11 h-9 M6.5 8.5 L3.5 11 L6.5 13.5" />
-      {:else if id === "displays"}
-        <rect x="1.5" y="2.5" width="13" height="9" rx="1.2" /><path d="M6 14 h4" stroke-linecap="round" />
-      {:else if id === "cables"}
-        <path d="M4 1.8 h8 v12.4 l-4 -3 -4 3 Z" stroke-linejoin="round" />
-      {:else if id === "refresh"}
-        <path d="M13 8 a5 5 0 1 1 -1.5 -3.5 M13 2 v3 h-3" stroke-linecap="round" stroke-linejoin="round" />
-      {:else if id === "settings"}
-        <circle cx="8" cy="8" r="2.3" /><path d="M8 1.5 v2 M8 12.5 v2 M1.5 8 h2 M12.5 8 h2 M3.5 3.5 l1.4 1.4 M11.1 11.1 l1.4 1.4 M12.5 3.5 l-1.4 1.4 M4.9 11.1 l-1.4 1.4" stroke-linecap="round" />
-      {/if}
-    </svg>
-  {/snippet}
-
-  <nav>
+<aside class="sidebar" class:native aria-label="plugcheck" use:melt={$root}>
+  <!-- Traffic lights live here; it also drags the window. -->
+  <div class="titlebar" data-tauri-drag-region></div>
+  <nav aria-label="Views" use:melt={$list}>
     {#each NAV as n}
-      <button class:sel={view === n.id} onclick={() => onView(n.id)}>
-        {@render icon(n.id)} {n.label}
-      </button>
+      <button class="item" class:active={view === n.id} onclick={() => onView(n.id)} use:melt={$trigger(n.id)}>{@render icon(n.id)}<span>{n.label}</span></button>
     {/each}
   </nav>
-
-  <div class="sep"></div>
-
-  <nav>
-    <button onclick={() => refresh()}>{@render icon("refresh")} Refresh now</button>
-    <button onclick={onSettings}>{@render icon("settings")} Settings…</button>
-    <button class="chk" onclick={onToggleTechnical}>
-      <span class="box" class:on={technical}>{technical ? "✓" : ""}</span>
-      Show technical details
-    </button>
-    <button class="chk" onclick={toggleEmpty}>
-      <span class="box" class:on={settings.hide_empty}>{settings.hide_empty ? "✓" : ""}</span>
-      Hide empty ports
-    </button>
+  <nav class="tools" aria-label="Tools">
+    <button class="item" onclick={() => refresh()}>{@render icon("refresh")}<span>Refresh Now</span></button>
+    <button class="item" class:active={view === "settings"} onclick={() => onView("settings")}>{@render icon("settings")}<span>Settings</span></button>
   </nav>
-
-  <div class="foot">
-    <div>{deviceCount} USB device{deviceCount === 1 ? "" : "s"}</div>
-    <div>plugcheck {store.version}</div>
-    <div class="hint">CLI: <code>plugcheck --text</code></div>
-  </div>
+  <footer>
+    <img src="/favicon.png" alt="" width="20" height="20" />
+    <span><b>plugcheck</b> {store.version}<br />{deviceCount} USB device{deviceCount === 1 ? "" : "s"}</span>
+  </footer>
 </aside>
 
 <style>
-  .scrim {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.25);
-    z-index: 40;
-  }
-  .bar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 230px;
-    background: var(--card);
-    border-right: 0.5px solid var(--line);
-    transform: translateX(-100%);
-    transition: transform 0.16s ease;
-    z-index: 50;
-    display: flex;
-    flex-direction: column;
-    padding: 0.9rem 0.7rem;
-  }
-  .bar.open {
-    transform: translateX(0);
-    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.15);
-  }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0 0.35rem 0.7rem;
-    font-size: 1rem;
-  }
-  .plug {
-    color: var(--accent);
-  }
-  nav {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-  }
-  nav button {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    width: 100%;
-    text-align: left;
-    background: none;
-    border: 0;
-    border-radius: 6px;
-    padding: 0.45rem 0.4rem;
-    color: var(--fg);
-    font-size: 0.84rem;
-    cursor: pointer;
-  }
-  nav button:hover {
-    background: color-mix(in srgb, var(--muted) 12%, transparent);
-  }
-  nav button.sel {
-    background: color-mix(in srgb, var(--accent) 16%, transparent);
-    color: color-mix(in srgb, var(--accent) 70%, var(--fg));
-    font-weight: 600;
-  }
-  .i {
-    flex: none;
-    color: var(--muted);
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.4;
-  }
-  nav button.sel .i {
-    color: inherit;
-  }
-  .sep {
-    height: 0.5px;
-    background: var(--line);
-    margin: 0.5rem 0;
-  }
-  .box {
-    width: 15px;
-    height: 15px;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    display: grid;
-    place-items: center;
-    font-size: 0.68rem;
-    color: #fff;
-  }
-  .box.on {
-    background: var(--accent);
-    border-color: var(--accent);
-  }
-  .foot {
-    margin-top: auto;
-    border-top: 0.5px solid var(--line);
-    padding: 0.6rem 0.4rem 0;
-    font-size: 0.72rem;
-    color: var(--muted);
-    display: grid;
-    gap: 0.2rem;
-  }
-  .foot code {
-    font-family: var(--mono);
-    font-size: 0.68rem;
-  }
+  .sidebar { display: flex; flex-direction: column; min-height: 0; padding: 0 10px 12px; border-right: 1px solid var(--line); background: #e9e9e9; }
+  .sidebar.native { background: transparent; }
+  @media (prefers-color-scheme: dark) { .sidebar { background: #2a2a2a; } .sidebar.native { background: transparent; border-right-color: rgba(0, 0, 0, .5); } }
+  .titlebar { flex: none; height: 52px; margin: 0 -10px; }
+  nav { display: grid; gap: 1px; }
+  .tools { margin-top: auto; }
+  .item { display: flex; align-items: center; gap: 7px; height: 28px; width: 100%; padding: 0 8px; border: 0; border-radius: 6px; background: none; text-align: left; font-size: 13px; }
+  .item.active { background: var(--selected); }
+  .i { flex: none; fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+  footer { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px 8px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.35; }
+  footer b { color: var(--fg); font-weight: 600; }
 </style>
