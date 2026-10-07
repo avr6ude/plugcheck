@@ -4,23 +4,40 @@ See what each USB-C / Thunderbolt cable and device on your Mac can actually
 do — and, when a link is slow, which part is the bottleneck. Free, open
 source, no telemetry. Inspired by [WhatCable](https://www.whatcable.uk/).
 
-## Status: MVP
+## Install
 
-Per-port cards showing:
+Download the `.dmg` from the
+[latest release](https://github.com/avr6ude/plugcheck/releases/latest), open
+it and drag **plugcheck** to Applications.
 
-- Headline: Thunderbolt / USB device / Display / Charging only / Empty
-- Data-speed verdict with blame (port · cable · device)
-- Charging line (negotiated watts, 3 A-cable cap)
-- Cable e-marker summary and trust flags (e.g. VID 0x0000)
-- Nested tree of connected devices
-- Engineer view: raw IOKit properties per port
+The app is not notarized by Apple, so macOS will refuse to open it the first
+time. Either right-click the app → **Open**, or run:
 
-Refreshes on a 3-second poll and on demand.
+```bash
+xattr -dr com.apple.quarantine /Applications/plugcheck.app
+```
+
+## What it shows
+
+A native macOS window with a 3D map of your MacBook's ports. Pick a side, pick
+a port, and get:
+
+- One plain sentence about what's connected and whether anything limits it
+  (port · cable · device)
+- Connection details: link speed, what the port supports, device, display,
+  cable, e-marker, charger
+- Connected-device tree, charger offers, and (optionally) raw IOKit data
+- Power monitor, per-link negotiation, display modes, and named cable history
+- Menu-bar icon and plug/unplug notifications
+
+Follows the system light/dark appearance. Refreshes on a 3-second poll, on
+plug events, and with ⌘R.
 
 ## Platform
 
 **Apple Silicon, macOS 14+.** Reads `ioreg` + `system_profiler` — no
-entitlements, no helper, no private APIs. Intel Macs don't expose the
+entitlements, no helper. (The window uses Tauri's `macos-private-api` only for
+its translucent sidebar.) Intel Macs don't expose the
 `AppleTCControllerType*` port-controller data this depends on. The probe
 sits behind a `UsbProbe` trait so Linux / Windows back ends can be added
 later; they are not implemented yet.
@@ -35,7 +52,7 @@ npm run tauri dev      # launches the app window
 ```bash
 cargo test --manifest-path src-tauri/Cargo.toml   # backend logic + parser
 npm run check                                     # svelte-check
-npm run tauri build                               # bundle a .app
+npm run tauri build                               # bundle the .app and .dmg
 ```
 
 ## How it works
@@ -55,13 +72,11 @@ macOS pre-decodes USB-PD e-marker data, so there is **no VDO bit-parsing** —
 current-limit arrays. See `docs/iokit-keys.md` for the observed key schema
 and `docs/2026-09-02-plugcheck-mvp-design.md` for the design.
 
-## Known limits (MVP)
+## Known limits
 
-No negotiated volts/amps or cable e-marker VDO detail (macOS doesn't expose
-them unprivileged) — charging watts and cable rating are partly inferred.
-Not yet: USB-IF certificate database, charger PDO breakdown, display
-resolution verdict, notifications, CLI, settings UI, menu-bar tray, cable
-history, localisation.
+No cable e-marker VDO detail (macOS doesn't expose it unprivileged), so cable
+ratings are partly inferred. Not yet: USB-IF certificate database, CLI,
+localisation, Intel Macs.
 
 Field mapping for the e-marker / charger path was pinned against an
 *empty-port* capture; it needs verification against a capture taken with a
