@@ -93,6 +93,9 @@
       <div class="row"><dt>Link</dt><dd>{link}{linkRate ? ` · ${linkRate}` : ""}</dd></div>
       <div class="row"><dt>Port supports</dt><dd>{portMax}</dd></div>
       <div class="row"><dt>Device</dt><dd>{device ? `${device.name}${device.vendor ? ` · ${device.vendor}` : ""}` : "None"}</dd></div>
+      {#if port.display}
+        <div class="row"><dt>Display</dt><dd>{port.display.name}{port.display.pixels ? ` · ${port.display.pixels.replace(" x ", " × ")}` : ""}{port.display.hz ? ` at ${port.display.hz} Hz` : ""}</dd></div>
+      {/if}
       <div class="row"><dt>Cable</dt><dd>{cable}</dd></div>
       <div class="row"><dt>E-marker</dt><dd>{port.emarker.present ? port.emarker.max_speed : "Not readable"}</dd></div>
       <div class="row"><dt>Charger</dt><dd>{charger?.watts != null ? `${charger.watts} W` : "None"}</dd></div>
