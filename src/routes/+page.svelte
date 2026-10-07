@@ -130,7 +130,7 @@
 
   :global(*) { box-sizing: border-box; }
   /* Transparent so the window's sidebar material shows through; the content pane paints its own ground. */
-  :global(html), :global(body) { margin: 0; height: 100%; background: transparent; }
+  :global(html), :global(body) { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: transparent; }
   :global(body) { color: var(--fg); font: 13px/1.4 var(--ui); -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; cursor: default; }
   :global(button), :global(input), :global(select) { font: inherit; color: inherit; }
   :global(::selection) { background: color-mix(in srgb, var(--accent) 30%, transparent); }
@@ -154,11 +154,11 @@
   .toolbar { flex: none; display: flex; flex-direction: column; justify-content: center; height: 52px; padding: 0 20px; border-bottom: 1px solid var(--line); }
   h1 { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.2; }
   .toolbar p { margin: 1px 0 0; color: var(--muted); font-size: 11px; }
-  main { flex: 1; min-height: 0; overflow-y: auto; padding: 24px; }
+  main { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: none; padding: 24px; }
   /* One row pinned to the pane height: the details column scrolls, the Mac stays put. */
   main.ports { display: grid; grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); gap: 24px; padding: 0 24px 0 12px; overflow: hidden; }
   .model-column { display: grid; min-width: 0; min-height: 0; padding-top: 14px; }
-  .inspector-column { min-width: 0; min-height: 0; overflow-y: auto; padding: 20px 0 24px; }
+  .inspector-column { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: none; padding: 20px 0 24px; }
   .placeholder { display: grid; justify-items: center; gap: 6px; align-content: center; min-height: 60%; text-align: center; }
   .placeholder h2 { margin: 0; font-size: 17px; font-weight: 600; }
   .placeholder p { margin: 0 0 6px; max-width: 26rem; color: var(--muted); }
