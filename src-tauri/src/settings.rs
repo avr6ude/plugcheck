@@ -15,6 +15,10 @@ pub struct Settings {
     pub menu_bar_only: bool,
     /// Show the raw-data "Technical" tab on ports.
     pub show_technical: bool,
+    /// Show live charging watts next to the menu-bar icon.
+    pub menu_bar_watts: bool,
+    /// Check GitHub for a newer release every few hours.
+    pub update_checks: bool,
 }
 
 impl Default for Settings {
@@ -25,6 +29,8 @@ impl Default for Settings {
             launch_at_login: false,
             menu_bar_only: false,
             show_technical: false,
+            menu_bar_watts: false,
+            update_checks: true,
         }
     }
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createTabs, melt } from "@melt-ui/svelte";
-  import { refresh, store } from "./snapshot.svelte";
+  import { refresh, store, openRelease } from "./snapshot.svelte";
 
   type View = "ports" | "power" | "negotiation" | "displays" | "cables" | "settings";
   let { view, deviceCount, onView }: { view: View; deviceCount: number; onView: (v: View) => void } = $props();
@@ -40,6 +40,9 @@
     <img src="/favicon.png" alt="" width="20" height="20" />
     <span><b>plugcheck</b> {store.version}<br />{deviceCount} USB device{deviceCount === 1 ? "" : "s"}</span>
   </footer>
+  {#if store.update}
+    <button class="update" onclick={() => openRelease(store.update!.url)}>Update to {store.update.version}…</button>
+  {/if}
 </aside>
 
 <style>
@@ -54,4 +57,5 @@
   .i { flex: none; fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
   footer { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px 8px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.35; }
   footer b { color: var(--fg); font-weight: 600; }
+  .update { margin: 8px 8px 0; padding: 0; border: 0; background: none; color: var(--accent); font-size: 11px; text-align: left; }
 </style>

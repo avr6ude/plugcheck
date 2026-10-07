@@ -11,8 +11,15 @@ fn main() {
         eprintln!("  plugcheck --text     print a readable snapshot and exit");
         eprintln!("  plugcheck --json     print snapshot + verdicts as JSON and exit");
         eprintln!("  plugcheck --watch    refresh the readable snapshot every 2s");
+        eprintln!("  plugcheck --raw      with --text/--watch: include raw IOKit properties");
+        eprintln!("  plugcheck --version  print the version");
         return;
     }
+    if has("--version") || has("-V") {
+        println!("plugcheck {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+    let raw = has("--raw");
     if has("--json") || has("-j") {
         plugcheck_lib::print_json();
         return;
@@ -22,12 +29,12 @@ fn main() {
         loop {
             print!("\x1b[2J\x1b[H"); // clear
             println!("plugcheck — live  (Ctrl-C to quit)\n");
-            plugcheck_lib::print_text();
+            plugcheck_lib::print_text(raw);
             std::thread::sleep(std::time::Duration::from_secs(period));
         }
     }
-    if has("--text") || has("-t") {
-        plugcheck_lib::print_text();
+    if has("--text") || has("-t") || raw {
+        plugcheck_lib::print_text(raw);
         return;
     }
     plugcheck_lib::run()

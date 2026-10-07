@@ -8,14 +8,8 @@ source, no telemetry. Inspired by [WhatCable](https://www.whatcable.uk/).
 
 Download the `.dmg` from the
 [latest release](https://github.com/avr6ude/plugcheck/releases/latest), open
-it and drag **plugcheck** to Applications.
-
-The app is not notarized by Apple, so macOS will refuse to open it the first
-time. Either right-click the app → **Open**, or run:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/plugcheck.app
-```
+it and drag **plugcheck** to Applications. Signed with a Developer ID and
+notarized by Apple.
 
 ## What it shows
 
@@ -26,12 +20,31 @@ a port, and get:
   (port · cable · device)
 - Connection details: link speed, what the port supports, device, display,
   cable, e-marker, charger
-- Connected-device tree, charger offers, and (optionally) raw IOKit data
+- Connected-device tree, charger offers with the active profile marked, and
+  (optionally) raw IOKit data
+- Cable trust flags: unusual e-marker values such as a zero vendor ID
+- Fault warnings mid-session: overcurrent cut-offs and connections that drop
+  and come back, read from the port's own counters
+- Port health counters (connections, plug events, overcurrent faults)
 - Power monitor, per-link negotiation, display modes, and named cable history
-- Menu-bar icon and plug/unplug notifications
+- Menu-bar menu with a live line per port, optional charging watts next to
+  the icon, plug/unplug notifications, and update checks against GitHub
 
 Follows the system light/dark appearance. Refreshes on a 3-second poll, on
 plug events, and with ⌘R.
+
+## Command line
+
+Settings → Advanced → **Command-line tool → Install** links `plugcheck` into
+`/usr/local/bin` (macOS asks for your password). Then:
+
+```bash
+plugcheck --text     # readable summary of every port
+plugcheck --json     # snapshot + verdicts as JSON, pipe into jq
+plugcheck --watch    # live view while you swap cables (Ctrl-C to quit)
+plugcheck --raw      # include raw IOKit properties
+plugcheck --version
+```
 
 ## Platform
 
@@ -53,6 +66,7 @@ npm run tauri dev      # launches the app window
 cargo test --manifest-path src-tauri/Cargo.toml   # backend logic + parser
 npm run check                                     # svelte-check
 npm run tauri build                               # bundle the .app and .dmg
+./scripts/release-mac.sh                          # signed + notarized .dmg (Xcode account)
 ```
 
 ## How it works

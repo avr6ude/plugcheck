@@ -1,26 +1,30 @@
 pub mod emarker;
+pub mod faults;
 pub mod history;
 pub mod model;
 pub mod probe;
 pub mod settings;
+pub mod update;
 pub mod verdict;
 
 use std::sync::Mutex;
 use std::time::Duration;
 
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{ActivationPolicy, Emitter, Manager, State};
 use tauri_plugin_autostart::{ManagerExt, MacosLauncher};
 use tauri_plugin_notification::NotificationExt;
 
-use crate::model::Snapshot;
+use crate::faults::port_label;
+use crate::model::{Port, Snapshot};
 use crate::probe::UsbProbe;
 use crate::settings::Settings;
 use crate::verdict::{verdicts, Blame, PortVerdict};
 
 struct AppState {
     last: Mutex<Option<Snapshot>>,
+    update: Mutex<Option<update::Update>>,
     settings: Mutex<Settings>,
     probe: Box<dyn UsbProbe>,
 }
@@ -70,7 +74,7 @@ fn notify_changes(app: &tauri::AppHandle, old: &Snapshot, new: &Snapshot) {
     for np in &new.ports {
         let op = old.ports.iter().find(|p| p.id == np.id);
         let was_occupied = op.map(|p| p.occupied).unwrap_or(false);
-        let label = np.id.replace("Port-", "").replace('@', " port ");
+        let label = port_label(np);
 
         if np.occupied && !was_occupied {
             let head = vnew
@@ -118,6 +122,97 @@ fn notify_changes(app: &tauri::AppHandle, old: &Snapshot, new: &Snapshot) {
     }
 }
 
+/// One menu line per port, e.g. "USB-C 3 — LG ULTRAGEAR".
+fn port_line(p: &Port, v: Option<&PortVerdict>) -> String {
+    let label = port_label(p);
+    if !p.occupied {
+        return format!("{label} — Not connected");
+    }
+    let what = p
+        .display
+        .as_ref()
+        .map(|d| d.name.clone())
+        .or_else(|| p.devices.first().map(|d| d.name.clone()))
+        .or_else(|| v.map(|v| v.headline.clone()))
+        .unwrap_or_else(|| "Connected".into());
+    match p.charger.as_ref().and_then(|c| c.live_watts.or(c.watts.map(f32::from))) {
+        Some(w) => format!("{label} — {what}, {w:.0} W"),
+        None => format!("{label} — {what}"),
+    }
+}
+
+fn charging_watts(snap: &Snapshot) -> Option<f32> {
+    snap.ports
+        .iter()
+        .find_map(|p| p.charger.as_ref().filter(|c| c.is_charging).and_then(|c| c.live_watts.or(c.watts.map(f32::from))))
+}
+
+fn tray_menu(app: &tauri::AppHandle, snap: Option<&Snapshot>) -> tauri::Result<Menu<tauri::Wry>> {
+    let menu = Menu::new(app)?;
+    if let Some(snap) = snap {
+        let v = verdicts(snap);
+        for p in &snap.ports {
+            let line = port_line(p, v.iter().find(|x| x.port_id == p.id));
+            menu.append(&MenuItem::with_id(app, format!("port:{}", p.id), line, false, None::<&str>)?)?;
+        }
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
+    }
+    menu.append(&MenuItem::with_id(app, "refresh", "Refresh", true, Some("CmdOrCtrl+R"))?)?;
+    menu.append(&MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?)?;
+    menu.append(&MenuItem::with_id(app, "updates", "Check for Updates…", true, None::<&str>)?)?;
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(app, "open", "Open plugcheck", true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, "quit", "Quit plugcheck", true, Some("CmdOrCtrl+Q"))?)?;
+    Ok(menu)
+}
+
+/// Refresh the tray's menu, tooltip and (optionally) the live charging wattage beside the icon.
+fn update_tray(app: &tauri::AppHandle, snap: &Snapshot) {
+    let Some(tray) = app.tray_by_id("plugcheck") else { return };
+    let _ = tray.set_tooltip(Some(tray_summary(snap)));
+    if let Ok(menu) = tray_menu(app, Some(snap)) {
+        let _ = tray.set_menu(Some(menu));
+    }
+    let show = app.state::<AppState>().settings.lock().unwrap().menu_bar_watts;
+    let title = show.then(|| charging_watts(snap)).flatten().map(|w| format!("{w:.0} W"));
+    let _ = tray.set_title(title);
+}
+
+fn open_url(url: &str) {
+    let _ = std::process::Command::new("/usr/bin/open").arg(url).spawn();
+}
+
+/// Background check; `manual` also reports "up to date" and opens the release page.
+fn check_updates(app: &tauri::AppHandle, manual: bool) {
+    let found = update::check();
+    let state = app.state::<AppState>();
+    let known = state.update.lock().unwrap().clone();
+    *state.update.lock().unwrap() = found.clone();
+    match found {
+        Some(u) if manual => open_url(&u.url),
+        Some(u) => {
+            let _ = app.emit("update-available", &u);
+            if known.as_ref() != Some(&u) {
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title(format!("plugcheck {} is available", u.version))
+                    .body("Open plugcheck to download it.")
+                    .show();
+            }
+        }
+        None if manual => {
+            let _ = app
+                .notification()
+                .builder()
+                .title("plugcheck is up to date")
+                .body(format!("Version {}", env!("CARGO_PKG_VERSION")))
+                .show();
+        }
+        None => {}
+    }
+}
+
 fn one_port(p: &crate::model::Port) -> Snapshot {
     Snapshot {
         ports: vec![p.clone()],
@@ -155,8 +250,8 @@ pub fn print_json() {
     }
 }
 
-/// `plugcheck --text` / `--watch`: readable per-port summary.
-pub fn print_text() {
+/// `plugcheck --text` / `--watch`: readable per-port summary; `raw` adds IOKit properties.
+pub fn print_text(raw: bool) {
     let snap = match make_probe().snapshot() {
         Ok(s) => s,
         Err(e) => {
@@ -166,14 +261,14 @@ pub fn print_text() {
     };
     let v = verdicts(&snap);
     for p in &snap.ports {
+        let label = port_label(p);
         if !p.occupied {
-            println!("{}  —  empty", p.id);
+            println!("{label}  —  not connected");
             continue;
         }
         let pv = v.iter().find(|x| x.port_id == p.id);
         println!(
-            "\n{}  {}",
-            p.id,
+            "\n{label}  {}",
             pv.map(|x| x.headline.as_str()).unwrap_or("connected")
         );
         if let Some(s) = pv.map(|x| x.subline.as_str()).filter(|s| !s.is_empty()) {
@@ -197,6 +292,11 @@ pub fn print_text() {
         }
         for d in &p.devices {
             print_dev(d, 2);
+        }
+        if raw {
+            for (k, val) in &p.raw {
+                println!("    {k} = {val}");
+            }
         }
     }
 }
@@ -271,6 +371,53 @@ fn forget_cable(app: tauri::AppHandle, sig: String) {
 }
 
 #[tauri::command]
+fn get_update(state: State<AppState>) -> Option<update::Update> {
+    state.update.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn open_release(url: String) -> Result<(), String> {
+    // Only our own release pages; never an arbitrary URL from the webview.
+    if !url.starts_with("https://github.com/avr6ude/plugcheck/") {
+        return Err("not a plugcheck release URL".into());
+    }
+    open_url(&url);
+    Ok(())
+}
+
+const CLI_LINK: &str = "/usr/local/bin/plugcheck";
+
+/// Whether `plugcheck` on the PATH already points at this app.
+#[tauri::command]
+fn cli_installed() -> bool {
+    let exe = std::env::current_exe().ok();
+    std::fs::read_link(CLI_LINK).ok().is_some_and(|t| Some(t) == exe)
+}
+
+/// Symlink the app binary to /usr/local/bin/plugcheck. macOS shows its own
+/// administrator prompt; plugcheck never sees the password.
+#[tauri::command]
+fn install_cli() -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe = exe.to_string_lossy();
+    if exe.contains(['\'', '"', '\\']) {
+        return Err("app path contains quotes; move plugcheck to /Applications".into());
+    }
+    let script = format!(
+        "do shell script \"mkdir -p /usr/local/bin && ln -sf '{exe}' {CLI_LINK}\" with administrator privileges with prompt \"plugcheck wants to install its command-line tool.\""
+    );
+    let out = std::process::Command::new("/usr/bin/osascript")
+        .args(["-e", &script])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+    }
+}
+
+#[tauri::command]
 fn app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
@@ -285,6 +432,9 @@ fn set_settings(app: tauri::AppHandle, state: State<AppState>, next: Settings) -
     settings::save(&app, &next)?;
     apply_settings(&app, &next);
     *state.settings.lock().unwrap() = next;
+    if let Some(snap) = state.last.lock().unwrap().clone() {
+        update_tray(&app, &snap); // menu-bar watts toggle applies at once
+    }
     Ok(())
 }
 
@@ -305,18 +455,17 @@ pub fn run() {
 
             app.manage(AppState {
                 last: Mutex::new(None),
+                update: Mutex::new(None),
                 settings: Mutex::new(cfg),
                 probe: make_probe(),
             });
 
             // --- menu-bar tray ---
-            let open_i = MenuItem::with_id(app, "open", "Open plugcheck", true, None::<&str>)?;
-            let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open_i, &quit_i])?;
+            let menu = tray_menu(&handle, None)?;
             let tray_icon = tauri::image::Image::from_bytes(include_bytes!(
                 "../icons/tray@2x.png"
             ))?;
-            let tray = TrayIconBuilder::with_id("plugcheck")
+            TrayIconBuilder::with_id("plugcheck")
                 .icon(tray_icon)
                 .icon_as_template(true)
                 .tooltip("plugcheck")
@@ -325,6 +474,14 @@ pub fn run() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_main(app),
                     "quit" => app.exit(0),
+                    "refresh" | "settings" => {
+                        show_main(app);
+                        let _ = app.emit("menu", event.id.as_ref());
+                    }
+                    "updates" => {
+                        let app = app.clone();
+                        std::thread::spawn(move || check_updates(&app, true));
+                    }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
@@ -355,20 +512,37 @@ pub fn run() {
                     continue;
                 };
                 history::touch(&poll_handle, &mut snap);
-                let _ = tray.set_tooltip(Some(tray_summary(&snap)));
+                update_tray(&poll_handle, &snap);
 
                 let mut last = state.last.lock().unwrap();
                 if changed(&last, &snap) {
                     let prev = last.replace(snap.clone());
                     let notify = state.settings.lock().unwrap().notifications;
                     drop(last);
-                    if notify {
-                        if let Some(prev) = prev {
+                    if let Some(prev) = prev {
+                        let found = faults::faults(&prev, &snap);
+                        if !found.is_empty() {
+                            // Faults always reach the window; notifications follow the setting.
+                            let _ = poll_handle.emit("faults", &found);
+                            for f in found.iter().filter(|_| notify) {
+                                let _ = poll_handle.notification().builder().title(&f.title).body(&f.text).show();
+                            }
+                        }
+                        if notify {
                             notify_changes(&poll_handle, &prev, &snap);
                         }
                     }
                     let _ = poll_handle.emit("snapshot-changed", snap);
                 }
+            });
+
+            // --- update check: at launch, then every 6 hours ---
+            let update_handle = handle.clone();
+            std::thread::spawn(move || loop {
+                if update_handle.state::<AppState>().settings.lock().unwrap().update_checks {
+                    check_updates(&update_handle, false);
+                }
+                std::thread::sleep(Duration::from_secs(6 * 60 * 60));
             });
             Ok(())
         })
@@ -380,6 +554,10 @@ pub fn run() {
             rename_cable,
             saved_cables,
             forget_cable,
+            get_update,
+            open_release,
+            cli_installed,
+            install_cli,
             app_version
         ])
         .run(tauri::generate_context!())

@@ -14,7 +14,7 @@
   import { createTabs, melt } from "@melt-ui/svelte";
   import type { Port, PortVerdict, CardStatus } from "./snapshot.svelte";
   import DeviceTree from "./DeviceTree.svelte";
-  import { renameCable } from "./snapshot.svelte";
+  import { renameCable, store, dismissFault } from "./snapshot.svelte";
   import { portLabel } from "./MacScene.svelte";
 
   let { port, verdict, technical }: { port: Port; verdict: PortVerdict | undefined; technical: boolean } = $props();
@@ -27,6 +27,14 @@
   // The data verdict is the answer; other cards are supporting findings and never colour the headline.
   const dataCard = $derived(verdict?.cards.find((c) => c.kind === "data"));
   const findings = $derived((verdict?.cards ?? []).filter((c) => c !== dataCard));
+  const portFaults = $derived(store.faults.filter((f) => f.port_id === port.id));
+  const health = $derived([
+    ["Connections since startup", port.connection_count],
+    ["Plug events", port.plug_events],
+    ["Overcurrent faults", port.overcurrent_count],
+  ].filter((r): r is [string, number] => r[1] != null));
+  const activeVolts = $derived(port.charger?.negotiated_volts != null ? Math.round(port.charger.negotiated_volts) : null);
+  const time = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const status = $derived<CardStatus>(dataCard?.status ?? (port.occupied ? "ok" : "idle"));
   const device = $derived(port.devices[0]);
   const deviceCount = $derived(port.devices.reduce((n, d) => n + 1 + d.children.length, 0));
@@ -79,13 +87,29 @@
 
   <!-- Only the tab content scrolls; the answer and the tabs stay put. -->
   <div class="scroll">
+  {#if shown === "overview" && portFaults.length}
+    <ul class="group findings faults" role="alert">
+      {#each portFaults as f}
+        <li class="row">
+          {@render symbol("warn", 16)}
+          <span><b>{capital(f.title.replace(/^.*?: /, ""))}</b><small>{f.text} Seen at {time(f.at)}.</small></span>
+          <button class="dismiss" aria-label="Dismiss" onclick={() => dismissFault(f)}>
+            <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+          </button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
   {#if shown === "overview" && !port.occupied}
     <!-- the header already says everything an empty port can -->
   {:else if shown === "overview"}
-    {#if findings.length}
+    {#if findings.length || verdict?.trust_flags.length}
       <ul class="group findings">
         {#each findings as card}
           <li class="row">{@render symbol(card.status, 16)}<span><b>{card.head}</b><small>{card.text}</small></span></li>
+        {/each}
+        {#each verdict?.trust_flags ?? [] as flag}
+          <li class="row">{@render symbol("warn", 16)}<span><b>Unusual cable identity</b><small>{flag} This looks unusual; it doesn’t prove the cable is fake.</small></span></li>
         {/each}
       </ul>
     {/if}
@@ -104,6 +128,16 @@
     </dl>
 
     {#each notes as note}<p class="group-note">{note}</p>{/each}
+
+    {#if health.length}
+      <h3 class="list-title">Port Health</h3>
+      <dl class="group">
+        {#each health as [label, n]}
+          <div class="row"><dt>{label}</dt><dd>{#if label === "Overcurrent faults" && n > 0}<span class="inline-symbol">{@render symbol("warn", 14)}</span>{/if}{n}</dd></div>
+        {/each}
+      </dl>
+      <p class="group-note">Counted by the port since your Mac started.</p>
+    {/if}
 
     {#if port.history}
       <h3 class="list-title">This Cable</h3>
@@ -126,7 +160,9 @@
       {#if charger.pdos.length}
         <h3 class="list-title">Charger Offers</h3>
         <dl class="group">
-          {#each charger.pdos as pdo}<div class="row"><dt>{pdo.volts} V · {pdo.amps.toFixed(2)} A</dt><dd>{pdo.watts} W</dd></div>{/each}
+          {#each charger.pdos as pdo}
+            <div class="row" class:active-pdo={pdo.volts === activeVolts}><dt>{pdo.volts} V · {pdo.amps.toFixed(2)} A{#if pdo.volts === activeVolts}<span class="in-use">In use</span>{/if}</dt><dd>{pdo.watts} W</dd></div>
+          {/each}
         </dl>
       {/if}
     {:else}<p class="empty-note">This port isn’t supplying or receiving power.</p>{/if}
@@ -162,6 +198,12 @@
   .findings span { display: grid; gap: 2px; }
   .findings b { font-weight: 400; }
   .findings small { color: var(--muted); font-size: 11px; line-height: 1.35; }
+  .faults { margin-bottom: 16px; }
+  .faults span { flex: 1; }
+  .dismiss { flex: none; display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: var(--fill); color: var(--muted); }
+  .inline-symbol { display: inline-flex; vertical-align: -2px; margin-right: 5px; }
+  .in-use { margin-left: 8px; color: var(--accent); font-size: 11px; font-weight: 600; }
+  .active-pdo dt { font-weight: 600; }
 
   .field { width: 12rem; max-width: 100%; height: 22px; padding: 0 6px; border: 0; border-radius: 5px; background: var(--fill); text-align: right; -webkit-user-select: text; user-select: text; }
   .field:focus { text-align: left; }

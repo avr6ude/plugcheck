@@ -103,7 +103,22 @@ export interface PortVerdict {
   charging_line: string | null;
 }
 
+export interface Fault {
+  port_id: string;
+  port: string;
+  kind: "overcurrent" | "reconnect";
+  title: string;
+  text: string;
+  at: number;
+}
+export interface Update {
+  version: string;
+  url: string;
+}
+
 export const store = $state<{
+  faults: Fault[];
+  update: Update | null;
   snapshot: Snapshot | null;
   verdicts: PortVerdict[];
   error: string | null;
@@ -111,6 +126,8 @@ export const store = $state<{
   version: string;
   power: { t: number; w: number }[];
 }>({
+  faults: [],
+  update: null,
   snapshot: null,
   verdicts: [],
   error: null,
@@ -147,13 +164,30 @@ export async function refresh(): Promise<void> {
 
 export async function startPolling(): Promise<UnlistenFn> {
   await refresh();
-  return listen<Snapshot>("snapshot-changed", (ev) => {
-    store.snapshot = ev.payload;
-    samplePower(ev.payload);
-    invoke<PortVerdict[]>("get_verdicts")
-      .then((v) => (store.verdicts = v))
-      .catch((e) => (store.error = String(e)));
-  });
+  invoke<Update | null>("get_update").then((u) => (store.update = u)).catch(() => {});
+  const offs = await Promise.all([
+    listen<Snapshot>("snapshot-changed", (ev) => {
+      store.snapshot = ev.payload;
+      samplePower(ev.payload);
+      invoke<PortVerdict[]>("get_verdicts")
+        .then((v) => (store.verdicts = v))
+        .catch((e) => (store.error = String(e)));
+    }),
+    // Overcurrent / drop-and-reconnect seen by the backend between two scans; kept for this session.
+    listen<Omit<Fault, "at">[]>("faults", (ev) => {
+      store.faults = [...ev.payload.map((f) => ({ ...f, at: Date.now() })), ...store.faults].slice(0, 20);
+    }),
+    listen<Update>("update-available", (ev) => (store.update = ev.payload)),
+  ]);
+  return () => offs.forEach((off) => off());
+}
+
+export function dismissFault(f: Fault) {
+  store.faults = store.faults.filter((x) => x !== f);
+}
+
+export function openRelease(url: string) {
+  invoke("open_release", { url }).catch(() => {});
 }
 
 export function verdictFor(id: string): PortVerdict | undefined {
@@ -197,6 +231,8 @@ export interface Settings {
   launch_at_login: boolean;
   menu_bar_only: boolean;
   show_technical: boolean;
+  menu_bar_watts: boolean;
+  update_checks: boolean;
 }
 
 export const settings = $state<Settings>({
@@ -205,6 +241,8 @@ export const settings = $state<Settings>({
   launch_at_login: false,
   menu_bar_only: false,
   show_technical: false,
+  menu_bar_watts: false,
+  update_checks: true,
 });
 
 export async function loadSettings(): Promise<void> {

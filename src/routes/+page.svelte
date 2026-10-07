@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { listen } from "@tauri-apps/api/event";
   import { store, startPolling, refresh, verdictFor, settings, loadSettings } from "$lib/snapshot.svelte";
   import SettingsPanel from "$lib/SettingsPanel.svelte";
   import Sidebar from "$lib/Sidebar.svelte";
@@ -28,7 +29,9 @@
     };
     active();
     addEventListener("focus", active); addEventListener("blur", active); addEventListener("keydown", keys);
-    return () => { unlisten?.(); removeEventListener("focus", active); removeEventListener("blur", active); removeEventListener("keydown", keys); };
+    // Menu-bar menu: Refresh and Settings… arrive here.
+    const offMenu = listen<string>("menu", (ev) => (ev.payload === "settings" ? (view = "settings") : refresh())).catch(() => undefined);
+    return () => { unlisten?.(); offMenu.then((off) => off?.()); removeEventListener("focus", active); removeEventListener("blur", active); removeEventListener("keydown", keys); };
   });
 
   const ports = $derived(store.snapshot?.ports ?? []);
