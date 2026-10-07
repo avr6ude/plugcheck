@@ -158,7 +158,7 @@
   /* One row pinned to the pane height: the details column scrolls, the Mac stays put. */
   main.ports { display: grid; grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); gap: 24px; padding: 0 24px 0 12px; overflow: hidden; }
   .model-column { display: grid; min-width: 0; min-height: 0; padding-top: 14px; }
-  .inspector-column { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: none; padding: 20px 0 24px; }
+  .inspector-column { min-width: 0; min-height: 0; padding-top: 20px; }
   .placeholder { display: grid; justify-items: center; gap: 6px; align-content: center; min-height: 60%; text-align: center; }
   .placeholder h2 { margin: 0; font-size: 17px; font-weight: 600; }
   .placeholder p { margin: 0 0 6px; max-width: 26rem; color: var(--muted); }
@@ -167,6 +167,7 @@
   @media (max-width: 1099px) {
     main.ports { grid-template-rows: none; grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 24px; overflow-y: auto; }
     .model-column { height: 260px; }
-    .inspector-column { overflow: visible; border-top: 1px solid var(--line); }
+    .inspector-column { border-top: 1px solid var(--line); }
+    .inspector-column :global(.scroll) { overflow: visible; }
   }
 </style>

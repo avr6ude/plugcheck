@@ -77,6 +77,8 @@
     </div>
   {/if}
 
+  <!-- Only the tab content scrolls; the answer and the tabs stay put. -->
+  <div class="scroll">
   {#if shown === "overview" && !port.occupied}
     <!-- the header already says everything an empty port can -->
   {:else if shown === "overview"}
@@ -134,9 +136,13 @@
       {#each Object.entries(port.raw) as [k, v]}<div class="row"><dt>{k}</dt><dd>{v}</dd></div>{/each}
     </dl>
   {/if}
+  </div>
 </section>
 
 <style>
+  .inspector { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+  .head, .segmented { flex: none; }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: none; padding: 1px 1px 24px; }
   .head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
   .head > .symbol { margin-top: 1px; }
   .head h2 { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.25; }
