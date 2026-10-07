@@ -178,8 +178,7 @@
   const shift = $derived((yaw.current / YAW.left) * (LABEL_W + LANE) / 2);
   function toPx(p: V): P2 {
     const [x, y] = persp(cam(p, yaw.current));
-    // Top-aligned: the model sits under the side switch instead of floating in leftover height.
-    return [vw / 2 + shift + (x - BOUNDS.cx) * scale, 12 + (y - BOUNDS.cy + BOUNDS.h / 2) * scale];
+    return [vw / 2 + shift + (x - BOUNDS.cx) * scale, vh / 2 + (y - BOUNDS.cy) * scale];
   }
 
   const pt = (p: V) => toPx(p).map((n) => n.toFixed(1)).join(",");
