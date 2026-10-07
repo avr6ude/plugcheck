@@ -1,6 +1,6 @@
 [package]
 name = "plugcheck"
-version = "0.1.0"
+version = "0.1.1"
 description = "See what each USB-C / Thunderbolt cable and device on your Mac can actually do."
 authors = ["avrdude"]
 edition = "2021"

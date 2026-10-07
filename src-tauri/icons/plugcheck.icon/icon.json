@@ -1,0 +1,24 @@
+{
+  "fill" : {
+    "automatic-gradient" : "extended-srgb:0.12000,0.40000,0.98000,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        { "image-name" : "tongue.svg", "name" : "tongue" }
+      ],
+      "shadow" : { "kind" : "neutral", "opacity" : 0.5 },
+      "translucency" : { "enabled" : true, "value" : 0.4 }
+    },
+    {
+      "layers" : [
+        { "image-name" : "receptacle.svg", "name" : "receptacle" }
+      ],
+      "shadow" : { "kind" : "neutral", "opacity" : 0.5 },
+      "translucency" : { "enabled" : true, "value" : 0.4 }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : [ "macOS" ]
+  }
+}
