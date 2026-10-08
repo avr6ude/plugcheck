@@ -44,7 +44,7 @@ when a connection is limited or needs investigation.
 
 ## Brand Commitments
 
-- Product name: plugcheck.
+- Product name: PlugCheck (the terminal command stays `plugcheck`).
 - Free, open source, no telemetry.
 - The interface should prioritize ease of use and plain-language answers.
 - Look and feel is native macOS (user decision, 2026-10-06): system appearance,

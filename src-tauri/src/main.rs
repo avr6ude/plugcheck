@@ -6,7 +6,7 @@ fn main() {
     let has = |f: &str| args.iter().any(|a| a == f);
 
     if has("--help") || has("-h") {
-        eprintln!("plugcheck — USB-C / Thunderbolt inspector\n");
+        eprintln!("PlugCheck — USB-C / Thunderbolt inspector\n");
         eprintln!("  plugcheck            launch the app");
         eprintln!("  plugcheck --text     print a readable snapshot and exit");
         eprintln!("  plugcheck --json     print snapshot + verdicts as JSON and exit");
@@ -16,7 +16,7 @@ fn main() {
         return;
     }
     if has("--version") || has("-V") {
-        println!("plugcheck {}", env!("CARGO_PKG_VERSION"));
+        println!("PlugCheck {}", env!("CARGO_PKG_VERSION"));
         return;
     }
     let raw = has("--raw");
@@ -28,7 +28,7 @@ fn main() {
         let period = if has("--dashboard") { 1 } else { 2 };
         loop {
             print!("\x1b[2J\x1b[H"); // clear
-            println!("plugcheck — live  (Ctrl-C to quit)\n");
+            println!("PlugCheck — live  (Ctrl-C to quit)\n");
             plugcheck_lib::print_text(raw);
             std::thread::sleep(std::time::Duration::from_secs(period));
         }

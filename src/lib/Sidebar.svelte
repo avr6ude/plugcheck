@@ -24,7 +24,7 @@
   </svg>
 {/snippet}
 
-<aside class="sidebar" class:native aria-label="plugcheck" use:melt={$root}>
+<aside class="sidebar" class:native aria-label="PlugCheck" use:melt={$root}>
   <!-- Traffic lights live here; it also drags the window. -->
   <div class="titlebar" data-tauri-drag-region></div>
   <nav aria-label="Views" use:melt={$list}>
@@ -38,7 +38,7 @@
   </nav>
   <footer>
     <img src="/favicon.png" alt="" width="20" height="20" />
-    <span><b>plugcheck</b> {store.version}<br />{deviceCount} USB device{deviceCount === 1 ? "" : "s"}</span>
+    <span><b>PlugCheck</b> {store.version}<br />{deviceCount} USB device{deviceCount === 1 ? "" : "s"}</span>
   </footer>
   {#if store.update}
     <button class="update" onclick={() => openRelease(store.update!.url)}>Update to {store.update.version}…</button>

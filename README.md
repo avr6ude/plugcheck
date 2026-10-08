@@ -1,4 +1,4 @@
-# plugcheck
+# PlugCheck
 
 See what each USB-C / Thunderbolt cable and device on your Mac can actually
 do — and, when a link is slow, which part is the bottleneck. Free, open
@@ -8,7 +8,7 @@ source, no telemetry. Inspired by [WhatCable](https://www.whatcable.uk/).
 
 Download the `.dmg` from the
 [latest release](https://github.com/avr6ude/plugcheck/releases/latest), open
-it and drag **plugcheck** to Applications. Signed with a Developer ID and
+it and drag **PlugCheck** to Applications. Signed with a Developer ID and
 notarized by Apple.
 
 ## What it shows

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "plugcheck",
+  "productName": "PlugCheck",
   "version": "0.1.1",
   "identifier": "com.avrdude.plugcheck",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "plugcheck",
+        "title": "PlugCheck",
         "width": 1180,
         "height": 800,
         "minWidth": 760,
@@ -54,5 +54,6 @@
     "macOS": {
       "minimumSystemVersion": "14.0"
     }
-  }
+  },
+  "mainBinaryName": "plugcheck"
 }

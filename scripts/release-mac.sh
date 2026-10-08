@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build a Developer ID–signed, notarized plugcheck .dmg.
+# Build a Developer ID–signed, notarized PlugCheck .dmg.
 #
 # Signing and notarization go through Xcode's signed-in account (Xcode →
 # Settings → Accounts) with Apple's cloud-managed Developer ID certificate, so
@@ -16,10 +16,10 @@ npm run tauri build -- --bundles app
 # Xcode only distributes archives, so wrap the Tauri .app in one. It lives in
 # Xcode's Archives folder because the Organizer only refreshes notarization
 # status for archives it knows about.
-ARCHIVE="$HOME/Library/Developer/Xcode/Archives/$(date +%Y-%m-%d)/plugcheck $VERSION.xcarchive"
+ARCHIVE="$HOME/Library/Developer/Xcode/Archives/$(date +%Y-%m-%d)/PlugCheck $VERSION.xcarchive"
 rm -rf "$W" "$ARCHIVE" && mkdir -p "$W" "$ARCHIVE/Products/Applications"
-APP="$ARCHIVE/Products/Applications/plugcheck.app"
-cp -R src-tauri/target/release/bundle/macos/plugcheck.app "$APP"
+APP="$ARCHIVE/Products/Applications/PlugCheck.app"
+cp -R src-tauri/target/release/bundle/macos/PlugCheck.app "$APP"
 # Notarization requires the hardened runtime; Xcode keeps these flags when it re-signs.
 codesign --force --deep --options runtime --identifier "$BUNDLE_ID" --sign - "$APP"
 cat > "$ARCHIVE/Info.plist" <<EOF
@@ -27,7 +27,7 @@ cat > "$ARCHIVE/Info.plist" <<EOF
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>ApplicationProperties</key><dict>
-    <key>ApplicationPath</key><string>Applications/plugcheck.app</string>
+    <key>ApplicationPath</key><string>Applications/PlugCheck.app</string>
     <key>Architectures</key><array><string>arm64</string></array>
     <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
@@ -37,8 +37,8 @@ cat > "$ARCHIVE/Info.plist" <<EOF
   </dict>
   <key>ArchiveVersion</key><integer>2</integer>
   <key>CreationDate</key><date>$(date -u +%Y-%m-%dT%H:%M:%SZ)</date>
-  <key>Name</key><string>plugcheck</string>
-  <key>SchemeName</key><string>plugcheck</string>
+  <key>Name</key><string>PlugCheck</string>
+  <key>SchemeName</key><string>PlugCheck</string>
 </dict></plist>
 EOF
 cat > "$W/ExportOptions.plist" <<EOF
@@ -61,16 +61,16 @@ for _ in $(seq 1 90); do
   xcodebuild -exportNotarizedApp -archivePath "$ARCHIVE" -exportPath "$W/notarized" >/dev/null 2>&1 && break
   sleep 20
 done
-NOTARIZED="$W/notarized/plugcheck.app"
+NOTARIZED="$W/notarized/PlugCheck.app"
 [ -d "$NOTARIZED" ] || { echo "Notarization not finished. Open Xcode → Window → Organizer to refresh, then rerun the export." >&2; exit 1; }
 
 # Fails loudly if Gatekeeper would still block it.
 spctl --assess --type execute -v "$NOTARIZED"
 xcrun stapler validate "$NOTARIZED"
 
-DMG="src-tauri/target/release/bundle/dmg/plugcheck_${VERSION}_aarch64.dmg"
+DMG="src-tauri/target/release/bundle/dmg/PlugCheck_${VERSION}_aarch64.dmg"
 mkdir -p "$(dirname "$DMG")" && rm -f "$DMG"
 STAGE=$(mktemp -d) && cp -R "$NOTARIZED" "$STAGE/" && ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname plugcheck -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+hdiutil create -volname PlugCheck -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 rm -rf "$STAGE"
 echo "Ready: $DMG"

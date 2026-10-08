@@ -53,7 +53,7 @@ fn tray_summary(snap: &Snapshot) -> String {
         .iter()
         .find_map(|p| p.charger.as_ref().and_then(|c| c.watts));
     let mut s = format!(
-        "plugcheck — {active} port{} in use",
+        "PlugCheck — {active} port{} in use",
         if active == 1 { "" } else { "s" }
     );
     if devices > 0 {
@@ -163,8 +163,8 @@ fn tray_menu(app: &tauri::AppHandle, snap: Option<&Snapshot>) -> tauri::Result<M
         menu.append(&MenuItem::with_id(app, "updates", "Check for Updates…", true, None::<&str>)?)?;
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
-    menu.append(&MenuItem::with_id(app, "open", "Open plugcheck", true, None::<&str>)?)?;
-    menu.append(&MenuItem::with_id(app, "quit", "Quit plugcheck", true, Some("CmdOrCtrl+Q"))?)?;
+    menu.append(&MenuItem::with_id(app, "open", "Open PlugCheck", true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, "quit", "Quit PlugCheck", true, Some("CmdOrCtrl+Q"))?)?;
     Ok(menu)
 }
 
@@ -198,8 +198,8 @@ fn check_updates(app: &tauri::AppHandle, manual: bool) {
                 let _ = app
                     .notification()
                     .builder()
-                    .title(format!("plugcheck {} is available", u.version))
-                    .body("Open plugcheck to download it.")
+                    .title(format!("PlugCheck {} is available", u.version))
+                    .body("Open PlugCheck to download it.")
                     .show();
             }
         }
@@ -207,7 +207,7 @@ fn check_updates(app: &tauri::AppHandle, manual: bool) {
             let _ = app
                 .notification()
                 .builder()
-                .title("plugcheck is up to date")
+                .title("PlugCheck is up to date")
                 .body(format!("Version {}", env!("CARGO_PKG_VERSION")))
                 .show();
         }
@@ -381,7 +381,7 @@ fn get_update(state: State<AppState>) -> Option<update::Update> {
 fn open_release(url: String) -> Result<(), String> {
     // Only our own release pages; never an arbitrary URL from the webview.
     if !url.starts_with("https://github.com/avr6ude/plugcheck/") {
-        return Err("not a plugcheck release URL".into());
+        return Err("not a PlugCheck release URL".into());
     }
     open_url(&url);
     Ok(())
@@ -413,10 +413,10 @@ fn install_cli() -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let exe = exe.to_string_lossy();
     if exe.contains(['\'', '"', '\\']) {
-        return Err("app path contains quotes; move plugcheck to /Applications".into());
+        return Err("app path contains quotes; move PlugCheck to /Applications".into());
     }
     let script = format!(
-        "do shell script \"mkdir -p /usr/local/bin && ln -sf '{exe}' {CLI_LINK}\" with administrator privileges with prompt \"plugcheck wants to install its command-line tool.\""
+        "do shell script \"mkdir -p /usr/local/bin && ln -sf '{exe}' {CLI_LINK}\" with administrator privileges with prompt \"PlugCheck wants to install its command-line tool.\""
     );
     let out = std::process::Command::new("/usr/bin/osascript")
         .args(["-e", &script])
@@ -480,7 +480,7 @@ pub fn run() {
             TrayIconBuilder::with_id("plugcheck")
                 .icon(tray_icon)
                 .icon_as_template(true)
-                .tooltip("plugcheck")
+                .tooltip("PlugCheck")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
@@ -600,7 +600,7 @@ mod tests {
 
     #[test]
     fn tray_summary_reads_well() {
-        assert_eq!(tray_summary(&empty(0)), "plugcheck — 0 ports in use");
+        assert_eq!(tray_summary(&empty(0)), "PlugCheck — 0 ports in use");
     }
 
     #[test]
