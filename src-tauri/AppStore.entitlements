@@ -5,5 +5,9 @@
   <!-- Required for App Store / TestFlight. ioreg + system_profiler work inside it. -->
   <key>com.apple.security.app-sandbox</key>
   <true/>
+  <!-- WKWebView renders nothing in a sandboxed app without this, even for the
+       app's own bundled UI (verified: blank window without it). -->
+  <key>com.apple.security.network.client</key>
+  <true/>
 </dict>
 </plist>
